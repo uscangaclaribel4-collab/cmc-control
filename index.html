@@ -200,8 +200,8 @@ function totales(r){
   const costoDrivers=E.reduce((s,e)=>s+(+e.pagoDriver||0),0);
   const gastos=G.reduce((s,g)=>s+(+g.monto||0),0);
   const pagado=P.reduce((s,p)=>s+(+p.monto||0),0);
-  const paq=E.reduce((s,e)=>s+(+e.paquetes||0),0), ent=E.reduce((s,e)=>s+(+e.entregados||0),0);
-  return{E,P,G,ingreso,costoDrivers,gastos,pagado,paq,ent,ganancia:ingreso-costoDrivers-gastos};
+  const paq=E.reduce((s,e)=>s+(+e.paquetes||0),0), ent=E.reduce((s,e)=>s+(+e.entregados||0),0), per=E.reduce((s,e)=>s+(+e.perdidos||0),0);
+  return{E,P,G,ingreso,costoDrivers,gastos,pagado,paq,ent,per,ganancia:ingreso-costoDrivers-gastos};
 }
 
 /* ---------- render ---------- */
@@ -231,6 +231,8 @@ function vResumen(v){
   const tasa=t.paq?(t.ent/t.paq*100):0;
   const pend=S.drivers.map(d=>({d,s:sal[d.id]})).filter(x=>Math.abs(x.s.ganado-x.s.pagado)>0.004).sort((a,b)=>(b.s.ganado-b.s.pagado)-(a.s.ganado-a.s.pagado));
   const porDriver={}; t.E.forEach(e=>{porDriver[e.driverId]=(porDriver[e.driverId]||0)+(+e.entregados||0)});
+  const perD={},asgD={}; t.E.forEach(e=>{perD[e.driverId]=(perD[e.driverId]||0)+(+e.perdidos||0);asgD[e.driverId]=(asgD[e.driverId]||0)+(+e.paquetes||0)});
+  const perdL=Object.entries(perD).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
   const ranking=Object.entries(porDriver).sort((a,b)=>b[1]-a[1]).slice(0,8), maxR=Math.max(1,...ranking.map(x=>x[1]));
   const porCat={}; t.G.forEach(g=>{porCat[g.categoria]=(porCat[g.categoria]||0)+(+g.monto||0)});
   const cats=Object.entries(porCat).sort((a,b)=>b[1]-a[1]), maxC=Math.max(1,...cats.map(x=>x[1]));
@@ -242,7 +244,7 @@ function vResumen(v){
     <div class="kpi"><div class="l">Costo de drivers</div><div class="v">${money(t.costoDrivers)}</div><div class="s">pagado en periodo ${money(t.pagado)}</div></div>
     <div class="kpi"><div class="l">Gastos</div><div class="v">${money(t.gastos)}</div><div class="s">${t.G.length} registros</div></div>
     <div class="kpi profit${t.ganancia<0?" neg":""}"><div class="l">Ganancia</div><div class="v">${money(t.ganancia)}</div><div class="s">margen ${t.ingreso?(t.ganancia/t.ingreso*100).toFixed(1):"0.0"}%</div></div>
-    <div class="kpi"><div class="l">Paquetes entregados</div><div class="v">${num(t.ent)}</div><div class="s">de ${num(t.paq)} · ${tasa.toFixed(1)}% éxito</div></div>
+    <div class="kpi"><div class="l">Paquetes entregados</div><div class="v">${num(t.ent)}</div><div class="s">de ${num(t.paq)} · ${tasa.toFixed(1)}% éxito${t.per?` · <span style="color:var(--bad)">${num(t.per)} perdidos</span>`:""}</div></div>
   </div>
   <div class="grid2">
     <section class="panel"><h3>Saldo pendiente con drivers</h3>
@@ -252,6 +254,9 @@ function vResumen(v){
     </section>
     <section class="panel"><h3>Paquetes entregados por driver</h3>
       ${ranking.length?`<div class="bars">${ranking.map(([id,n])=>`<div class="brow"><span>${esc(drvName(id))}</span><span class="track"><span class="fill" style="width:${n/maxR*100}%"></span></span><span class="val">${num(n)}</span></div>`).join("")}</div>`:`<p class="muted">Sin entregas en este periodo.</p>`}
+    </section>
+    <section class="panel"><h3>Paquetes perdidos por driver</h3>
+      ${perdL.length?`<div class="tw" style="border:0"><table><thead><tr><th>Driver</th><th class="n">Perdidos</th><th class="n">Asignados</th><th class="n">% perdidos</th></tr></thead><tbody>${perdL.map(([id,n])=>`<tr><td>${esc(drvName(id))}</td><td class="n"><b style="color:var(--bad)">${num(n)}</b></td><td class="n">${num(asgD[id])}</td><td class="n">${asgD[id]?(n/asgD[id]*100).toFixed(2):"0.00"}%</td></tr>`).join("")}</tbody></table></div><h3 style="margin-top:14px">Detalle por fecha</h3><div class="tw" style="border:0"><table><thead><tr><th>Fecha</th><th>Driver</th><th>Ruta</th><th class="n">Perdidos</th></tr></thead><tbody>${t.E.filter(e=>+e.perdidos>0).sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(e=>`<tr><td class="d">${fmtD(e.fecha)}</td><td>${esc(drvName(e.driverId))}</td><td>${esc(e.ruta||"")}</td><td class="n"><b style="color:var(--bad)">${num(e.perdidos)}</b></td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">Ningún paquete perdido en este periodo.</p>`}
     </section>
     <section class="panel"><h3>Gastos por categoría</h3>
       ${cats.length?`<div class="bars">${cats.map(([c,n])=>`<div class="brow"><span>${esc(c)}</span><span class="track"><span class="fill" style="width:${n/maxC*100}%;background:var(--accent)"></span></span><span class="val">${money(n)}</span></div>`).join("")}</div>`:`<p class="muted">Sin gastos en este periodo.</p>`}
@@ -270,9 +275,9 @@ function vEntregas(v){
   const L=S.entregas.filter(e=>inR(e.fecha,r)&&(!fDrv||e.driverId===fDrv)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
   const sum=k=>L.reduce((s,e)=>s+(+e[k]||0),0);
   v.innerHTML=`<div class="bar"><div class="left"><h2>Entregas</h2>${periodSelect()}${filtroDriver(fDrv)}</div><div class="left"><button class="btn" data-csv="entregas">Exportar CSV</button><button class="btn primary" data-new="entregas">+ Registrar ruta</button></div></div>
-  ${L.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Driver</th><th>Ruta / cliente</th><th class="n">Paquetes</th><th class="n">Entregados</th><th class="n">Fallidos</th><th class="n">Cobro</th><th class="n">Pago driver</th><th class="n">Margen</th><th></th></tr></thead><tbody>
-  ${L.map(e=>{const f=(+e.paquetes||0)-(+e.entregados||0);return`<tr><td class="d">${fmtD(e.fecha)}</td><td>${esc(drvName(e.driverId))}${exChip(e)}</td><td>${esc(e.ruta||"")}${e.cliente?`<div class="sub">${esc(e.cliente)}</div>`:""}</td><td class="n">${num(e.paquetes)}</td><td class="n">${num(e.entregados)}</td><td class="n">${f>0?`<span style="color:var(--bad)">${f}</span>`:"0"}</td><td class="n">${money(e.ingreso)}</td><td class="n">${money(e.pagoDriver)}</td><td class="n">${money((+e.ingreso||0)-(+e.pagoDriver||0))}</td>${rowActions("entregas",e.id)}</tr>`}).join("")}
-  </tbody><tfoot><tr><td colspan="3">${L.length} rutas</td><td class="n">${num(sum("paquetes"))}</td><td class="n">${num(sum("entregados"))}</td><td class="n">${num(sum("paquetes")-sum("entregados"))}</td><td class="n">${money(sum("ingreso"))}</td><td class="n">${money(sum("pagoDriver"))}</td><td class="n">${money(sum("ingreso")-sum("pagoDriver"))}</td><td></td></tr></tfoot></table></div>`
+  ${L.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Driver</th><th>Ruta / cliente</th><th class="n">Paquetes</th><th class="n">Entregados</th><th class="n">Devueltos</th><th class="n">Perdidos</th><th class="n">Cobro</th><th class="n">Pago driver</th><th class="n">Margen</th><th></th></tr></thead><tbody>
+  ${L.map(e=>{const pd=+e.perdidos||0,f=(+e.paquetes||0)-(+e.entregados||0)-pd;return`<tr><td class="d">${fmtD(e.fecha)}</td><td>${esc(drvName(e.driverId))}${exChip(e)}</td><td>${esc(e.ruta||"")}${e.cliente?`<div class="sub">${esc(e.cliente)}</div>`:""}</td><td class="n">${num(e.paquetes)}</td><td class="n">${num(e.entregados)}</td><td class="n">${f>0?`<span style="color:var(--warn)">${f}</span>`:"0"}</td><td class="n">${pd>0?`<b style="color:var(--bad)">${pd}</b>`:"0"}</td><td class="n">${money(e.ingreso)}</td><td class="n">${money(e.pagoDriver)}</td><td class="n">${money((+e.ingreso||0)-(+e.pagoDriver||0))}</td>${rowActions("entregas",e.id)}</tr>`}).join("")}
+  </tbody><tfoot><tr><td colspan="3">${L.length} rutas</td><td class="n">${num(sum("paquetes"))}</td><td class="n">${num(sum("entregados"))}</td><td class="n">${num(sum("paquetes")-sum("entregados")-sum("perdidos"))}</td><td class="n">${num(sum("perdidos"))}</td><td class="n">${money(sum("ingreso"))}</td><td class="n">${money(sum("pagoDriver"))}</td><td class="n">${money(sum("ingreso")-sum("pagoDriver"))}</td><td></td></tr></tfoot></table></div>`
   :`<div class="empty"><strong>Sin rutas en este periodo</strong>${S.drivers.length?"Registra cada ruta del día: driver, paquetes, entregados y lo que cobras al cliente.":"Primero agrega un driver en la pestaña Drivers."}</div>`}`;
 }
 
@@ -280,8 +285,8 @@ function vDrivers(v){
   const sal=saldos();
   const L=[...S.drivers].sort((a,b)=>(b.activo!==false)-(a.activo!==false)||a.nombre.localeCompare(b.nombre));
   v.innerHTML=`<div class="bar"><div class="left"><h2>Drivers independientes</h2><span class="sub">${S.drivers.filter(d=>d.activo!==false).length} activos</span></div><div class="left"><button class="btn" data-csv="drivers">Exportar CSV</button><button class="btn primary" data-new="drivers">+ Agregar driver</button></div></div>
-  ${L.length?`<div class="tw"><table><thead><tr><th>Nombre</th><th>Contacto</th><th>Vehículo</th><th>Forma de pago</th><th>Documentos</th><th class="n">Le debes</th><th></th></tr></thead><tbody>
-  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id)}</tr>`}).join("")}
+  ${L.length?`<div class="tw"><table><thead><tr><th>Nombre</th><th>Contacto</th><th>Vehículo</th><th>Forma de pago</th><th>Documentos</th><th class="n">Perdidos</th><th class="n">Le debes</th><th></th></tr></thead><tbody>
+  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id)}</tr>`}).join("")}
   </tbody></table></div><p class="note">Como contratistas 1099, pide a cada driver su formulario W-9 antes del primer pago y guarda copia de su licencia y seguro del vehículo.</p>`
   :`<div class="empty"><strong>Aún no tienes drivers</strong>Agrega a tus drivers independientes con su forma de pago (por paquete o por ruta).</div>`}`;
 }
@@ -339,7 +344,7 @@ const F={
   entregas:{t:"Ruta / entrega",f:[
     ["fecha","Fecha","date",{req:1,def:today}],["driverId","Driver","driver",{req:1}],
     ["ruta","Ruta / zona","text",{ph:"Ej. Ruta 12 – Katy"}],["cliente","Cliente","text",{ph:"Ej. Amazon DSP, FedEx, tienda local"}],
-    ["paquetes","Paquetes asignados","number",{req:1}],["entregados","Paquetes entregados","number",{req:1}],
+    ["paquetes","Paquetes asignados","number",{req:1}],["entregados","Paquetes entregados","number",{req:1}],["perdidos","Paquetes perdidos","number",{hint:"Paquetes que se perdieron o no aparecieron"}],
     ["ingreso","Cobro al cliente $","number",{hint:"Lo que la LLC cobra por esta ruta"}],["pagoDriver","Pago al driver $","number",{hint:"Se calcula con la tarifa del driver; puedes cambiarlo"}],
     ["notas","Notas","textarea",{full:1,ph:"Incidencias, devoluciones, millas…"}]]},
   pagos:{t:"Pago a driver",f:[
@@ -351,7 +356,7 @@ const F={
     ["fecha","Fecha","date",{req:1,def:today}],["categoria","Categoría","select",{opts:CATS.map(c=>[c,c])}],
     ["monto","Monto $","number",{req:1}],["proveedor","Proveedor","text"],["descripcion","Descripción","textarea",{full:1}]]}
 };
-const NUMS=new Set(["tarifa","paquetes","entregados","ingreso","pagoDriver","monto"]);
+const NUMS=new Set(["tarifa","paquetes","entregados","perdidos","ingreso","pagoDriver","monto"]);
 
 function calcPago(driverId,entregados){
   const d=drv(driverId); if(!d)return null;
@@ -398,10 +403,10 @@ async function saveForm(e){
     if(o.req&&(v===""||(NUMS.has(k)&&isNaN(v)))){$("#ferr").textContent=`Falta: ${l}.`;el.focus();return}
     out[k]=v;
   }
-  if(col==="entregas"&&out.entregados>out.paquetes){$("#ferr").textContent="Entregados no puede ser mayor que paquetes asignados.";return}
+  if(col==="entregas"&&out.entregados+out.perdidos>out.paquetes){$("#ferr").textContent="Entregados + perdidos no puede ser mayor que paquetes asignados.";return}
   const prev=id?S[col].find(x=>x.id===id):null;
   if(prev?.ejemplo)out.ejemplo=true;
-  out.actualizado=new Date().toISOString();
+  out.actualizado=new Date().toISOString(); out.creado=(prev&&prev.creado)||out.actualizado;
   $("#fsave").disabled=true;
   try{await put(col,id,out);closeForm();toast(id?"Cambios guardados":"Guardado")}
   catch(err){$("#fsave").disabled=false;$("#ferr").textContent=errMsg(err)}
@@ -428,7 +433,7 @@ async function del(col,id){
 /* ---------- CSV ---------- */
 function csv(rows){return rows.map(r=>r.map(c=>{c=String(c??"");return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(",")).join("\n")}
 function buildCsv(k){
-  if(k==="entregas")return csv([["Fecha","Driver","Ruta","Cliente","Paquetes","Entregados","Fallidos","Cobro","Pago driver","Margen","Notas"],...S.entregas.filter(e=>inR(e.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(e=>[e.fecha,drvName(e.driverId),e.ruta,e.cliente,e.paquetes,e.entregados,(e.paquetes||0)-(e.entregados||0),e.ingreso,e.pagoDriver,((+e.ingreso||0)-(+e.pagoDriver||0)).toFixed(2),e.notas])]);
+  if(k==="entregas")return csv([["Fecha","Driver","Ruta","Cliente","Paquetes","Entregados","Devueltos","Perdidos","Cobro","Pago driver","Margen","Notas"],...S.entregas.filter(e=>inR(e.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(e=>[e.fecha,drvName(e.driverId),e.ruta,e.cliente,e.paquetes,e.entregados,(e.paquetes||0)-(e.entregados||0)-(e.perdidos||0),e.perdidos||0,e.ingreso,e.pagoDriver,((+e.ingreso||0)-(+e.pagoDriver||0)).toFixed(2),e.notas])]);
   if(k==="pagos")return csv([["Fecha","Driver","Monto","Método","Referencia","Periodo","Notas"],...S.pagos.filter(p=>inR(p.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(p=>[p.fecha,drvName(p.driverId),p.monto,p.metodo,p.referencia,p.periodo,p.notas])]);
   if(k==="gastos")return csv([["Fecha","Categoría","Proveedor","Descripción","Monto"],...S.gastos.filter(g=>inR(g.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(g=>[g.fecha,g.categoria,g.proveedor,g.descripcion,g.monto])]);
   if(k==="drivers")return csv([["Nombre","Teléfono","Email","Vehículo","Placa","Forma de pago","Tarifa","W-9","Vence seguro","Activo","Inicio","Notas"],...S.drivers.map(d=>[d.nombre,d.telefono,d.email,d.vehiculo,d.placa,PAGO_TIPO[d.pagoTipo],d.tarifa,d.w9?"Sí":"No",d.vencSeguro,d.activo===false?"No":"Sí",d.fechaInicio,d.notas])]);
