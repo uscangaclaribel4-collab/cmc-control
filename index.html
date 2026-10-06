@@ -158,13 +158,14 @@ const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const today=()=>iso(new Date());
 const fmtD=s=>{if(!s)return"";const[y,m,d]=s.split("-");return m+"/"+d+"/"+y};
 
-const COLS=["drivers","entregas","pagos","gastos"];
-const S={drivers:[],entregas:[],pagos:[],gastos:[]};
+const COLS=["drivers","entregas","pagos","gastos","retiros"];
+const S={drivers:[],entregas:[],pagos:[],gastos:[],retiros:[]};
 let db=null, dl=null, tab="resumen", periodo="mes", anio1099=String(new Date().getFullYear()-0), umbral=2000;
 let loaded={};
 try{tab=localStorage.getItem("cmc_tab")||tab;periodo=localStorage.getItem("cmc_per")||periodo}catch(e){}
 
-const TABS=[["resumen","Resumen"],["entregas","Entregas"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["1099","1099 / Impuestos"]];
+const TABS=[["resumen","Resumen"],["entregas","Entregas"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["socios","Socios"],["1099","1099 / Impuestos"]];
+const SOCIOS=["Claribel Alfonso","Felipe Alfonso","Daianna Velasquez"];
 const METODOS=["Zelle","Transferencia","Cheque","Efectivo","Cash App","Otro"];
 const CATS=["Combustible","Seguro","Mantenimiento vehículo","Software / apps","Permisos y licencias","Renta / bodega","Teléfono","Oficina","Contador / legal","Publicidad","Otro"];
 const PAGO_TIPO={paquete:"Por paquete entregado",ruta:"Tarifa fija por ruta/día",manual:"Monto manual"};
@@ -223,7 +224,7 @@ function render(){
   const v=$("#view");
   if(!db)return;
   if(!COLS.every(c=>loaded[c])){v.innerHTML=`<div class="empty"><strong>Cargando</strong>Leyendo tus registros…</div>`;return}
-  ({resumen:vResumen,entregas:vEntregas,drivers:vDrivers,pagos:vPagos,gastos:vGastos,"1099":v1099}[tab]||vResumen)(v);
+  ({resumen:vResumen,entregas:vEntregas,drivers:vDrivers,pagos:vPagos,gastos:vGastos,socios:vSocios,"1099":v1099}[tab]||vResumen)(v);
 }
 
 function vResumen(v){
@@ -247,6 +248,10 @@ function vResumen(v){
     <div class="kpi"><div class="l">Paquetes entregados</div><div class="v">${num(t.ent)}</div><div class="s">de ${num(t.paq)} · ${tasa.toFixed(1)}% éxito${t.per?` · <span style="color:var(--bad)">${num(t.per)} perdidos</span>`:""}</div></div>
   </div>
   <div class="grid2">
+    <section class="panel"><h3>Ganancia por socio (1/3 cada uno)</h3>
+      <div class="bars">${SOCIOS.map(n=>`<div class="brow"><span>${esc(n)}</span><span></span><span class="val" style="color:${t.ganancia<0?"var(--bad)":"var(--good)"}">${money(t.ganancia/SOCIOS.length)}</span></div>`).join("")}</div>
+      <p class="note">Detalle y retiros en la pestaña Socios.</p>
+    </section>
     <section class="panel"><h3>Saldo pendiente con drivers</h3>
       ${pend.length?`<div class="tw" style="border:0"><table><thead><tr><th>Driver</th><th class="n">Ganado</th><th class="n">Pagado</th><th class="n">Debes</th></tr></thead><tbody>
       ${pend.map(({d,s})=>`<tr><td>${esc(d.nombre)}${exChip(d)}</td><td class="n">${money(s.ganado)}</td><td class="n">${money(s.pagado)}</td><td class="n"><b style="color:${s.ganado-s.pagado>0?"var(--warn)":"var(--good)"}">${money(s.ganado-s.pagado)}</b></td></tr>`).join("")}
@@ -313,6 +318,23 @@ function vGastos(v){
   :`<div class="empty"><strong>Sin gastos en este periodo</strong>Anota combustible, seguro, apps, permisos y todo lo que paga la empresa. Guarda el recibo.</div>`}`;
 }
 
+function vSocios(v){
+  const r=rango(periodo), t=totales(r), parte=t.ganancia/SOCIOS.length;
+  const R=S.retiros.filter(x=>inR(x.fecha,r)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const ret=n=>R.filter(x=>x.socio===n).reduce((s,x)=>s+(+x.monto||0),0);
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Socios</h2>${periodSelect()}</div><div class="left"><button class="btn" data-csv="retiros">Exportar CSV</button><button class="btn primary" data-new="retiros">+ Registrar retiro</button></div></div>
+  <div class="kpis">
+    <div class="kpi profit${t.ganancia<0?" neg":""}"><div class="l">Ganancia de la empresa</div><div class="v">${money(t.ganancia)}</div><div class="s">${fmtD(r[0])==="01/01/0000"?"Todo el historial":fmtD(r[0])+" – "+fmtD(r[1])}</div></div>
+    ${SOCIOS.map(n=>`<div class="kpi"><div class="l">${esc(n)} · 1/3</div><div class="v">${money(parte)}</div><div class="s">retirado ${money(ret(n))} · queda ${money(parte-ret(n))}</div></div>`).join("")}
+  </div>
+  <h3>Retiros de socios</h3>
+  ${R.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Socio</th><th>Método</th><th>Notas</th><th class="n">Monto</th><th></th></tr></thead><tbody>
+  ${R.map(x=>`<tr><td class="d">${fmtD(x.fecha)}</td><td>${esc(x.socio)}${exChip(x)}</td><td>${esc(x.metodo||"")}</td><td>${esc(x.notas||"")}</td><td class="n">${money(x.monto)}</td>${rowActions("retiros",x.id)}</tr>`).join("")}
+  </tbody><tfoot><tr><td colspan="4">${R.length} retiros</td><td class="n">${money(R.reduce((s,x)=>s+(+x.monto||0),0))}</td><td></td></tr></tfoot></table></div>`
+  :`<div class="empty"><strong>Sin retiros en este periodo</strong>Registra cada vez que un socio saca dinero de la empresa, con su fecha.</div>`}
+  <p class="note">La ganancia se reparte en partes iguales entre los 3 socios: ingresos menos pago a drivers menos gastos del periodo elegido. "Queda" es la parte de cada socio menos lo que ya retiró en ese periodo.</p>`;
+}
+
 function v1099(v){
   const yrs=new Set([String(new Date().getFullYear())]); S.pagos.forEach(p=>p.fecha&&yrs.add(p.fecha.slice(0,4)));
   const ys=[...yrs].sort().reverse(); if(!ys.includes(anio1099))anio1099=ys[0];
@@ -351,6 +373,10 @@ const F={
     ["fecha","Fecha del pago","date",{req:1,def:today}],["driverId","Driver","driver",{req:1}],
     ["monto","Monto $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
     ["referencia","Referencia / # cheque","text"],["periodo","Periodo cubierto","text",{ph:"Ej. Semana 9/28 – 10/4"}],
+    ["notas","Notas","textarea",{full:1}]]},
+  retiros:{t:"Retiro de socio",f:[
+    ["fecha","Fecha","date",{req:1,def:today}],["socio","Socio","select",{opts:SOCIOS.map(s=>[s,s])}],
+    ["monto","Monto $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
     ["notas","Notas","textarea",{full:1}]]},
   gastos:{t:"Gasto",f:[
     ["fecha","Fecha","date",{req:1,def:today}],["categoria","Categoría","select",{opts:CATS.map(c=>[c,c])}],
@@ -436,6 +462,7 @@ function buildCsv(k){
   if(k==="entregas")return csv([["Fecha","Driver","Ruta","Cliente","Paquetes","Entregados","Devueltos","Perdidos","Cobro","Pago driver","Margen","Notas"],...S.entregas.filter(e=>inR(e.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(e=>[e.fecha,drvName(e.driverId),e.ruta,e.cliente,e.paquetes,e.entregados,(e.paquetes||0)-(e.entregados||0)-(e.perdidos||0),e.perdidos||0,e.ingreso,e.pagoDriver,((+e.ingreso||0)-(+e.pagoDriver||0)).toFixed(2),e.notas])]);
   if(k==="pagos")return csv([["Fecha","Driver","Monto","Método","Referencia","Periodo","Notas"],...S.pagos.filter(p=>inR(p.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(p=>[p.fecha,drvName(p.driverId),p.monto,p.metodo,p.referencia,p.periodo,p.notas])]);
   if(k==="gastos")return csv([["Fecha","Categoría","Proveedor","Descripción","Monto"],...S.gastos.filter(g=>inR(g.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(g=>[g.fecha,g.categoria,g.proveedor,g.descripcion,g.monto])]);
+  if(k==="retiros")return csv([["Fecha","Socio","Monto","Método","Notas"],...S.retiros.filter(x=>inR(x.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>[x.fecha,x.socio,x.monto,x.metodo,x.notas])]);
   if(k==="drivers")return csv([["Nombre","Teléfono","Email","Vehículo","Placa","Forma de pago","Tarifa","W-9","Vence seguro","Activo","Inicio","Notas"],...S.drivers.map(d=>[d.nombre,d.telefono,d.email,d.vehiculo,d.placa,PAGO_TIPO[d.pagoTipo],d.tarifa,d.w9?"Sí":"No",d.vencSeguro,d.activo===false?"No":"Sí",d.fechaInicio,d.notas])]);
   if(k==="1099"){const tot={};S.pagos.filter(p=>p.fecha?.startsWith(anio1099)).forEach(p=>tot[p.driverId]=(tot[p.driverId]||0)+(+p.monto||0));
     return csv([["Año","Driver","Teléfono","Email","W-9","Total pagado","Requiere 1099-NEC"],...Object.entries(tot).map(([id,m])=>{const d=drv(id);return[anio1099,d?.nombre||"(eliminado)",d?.telefono,d?.email,d?.w9?"Sí":"No",m.toFixed(2),m>=umbral?"Sí":"No"]})])}
