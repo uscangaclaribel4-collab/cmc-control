@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="../logo.webp">
+<title>Control CMC Houston</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: barra superior con pestañas tipo etiqueta de envío; contenido en una columna ancha con tablas desplazables */
+:root{
+  --bg:#f4f5f9; --surface:#ffffff; --ink:#13224f; --muted:#5a6483; --line:#d9dce8;
+  --accent:#b3121c; --accent-ink:#ffffff; --navy:#1a2f6e; --plate:#ffffff;
+  --good:#1f8a52; --warn:#a65f00; --bad:#b3121c; --chip:#e8ebf4;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0c1226; --surface:#141c36; --ink:#e8ecf6; --muted:#97a1bd; --line:#27304f;
+  --accent:#e0353f; --accent-ink:#ffffff; --navy:#8fa8ee; --plate:#ffffff;
+  --good:#4cc283; --warn:#e7a43b; --bad:#ff7a7a; --chip:#1f2945; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c1226; --surface:#141c36; --ink:#e8ecf6; --muted:#97a1bd; --line:#27304f;
+  --accent:#e0353f; --accent-ink:#ffffff; --navy:#8fa8ee; --plate:#ffffff;
+  --good:#4cc283; --warn:#e7a43b; --bad:#ff7a7a; --chip:#1f2945; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:18px 60px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:3px solid var(--navy);box-shadow:0 3px 0 var(--accent);padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:16px;flex-wrap:wrap;min-width:0}
+.logo{background:var(--plate);padding:6px 10px;border-radius:4px;line-height:0}
+.logo img{height:74px;width:auto;display:block}
+@media (max-width:520px){.logo img{height:58px}}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:26px;color:var(--navy);letter-spacing:.01em;margin:0;line-height:1;text-transform:uppercase}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.brand .tag{font-family:var(--f-mono);font-size:11px;background:var(--accent);color:var(--accent-ink);padding:2px 6px;letter-spacing:.06em;margin-right:6px}
+.sync{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;margin:14px 0 18px;scrollbar-width:none}
+nav.tabs button{font-family:var(--f-display);font-weight:600;font-size:17px;letter-spacing:.04em;text-transform:uppercase;background:transparent;color:var(--muted);border:1px solid transparent;padding:6px 14px;cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{background:var(--navy);color:var(--surface);box-shadow:inset 0 -3px 0 var(--accent)}
+nav.tabs button:hover:not([aria-selected="true"]){border-color:var(--line);color:var(--ink)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.bar .left{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+h2{font-family:var(--f-display);font-weight:700;font-size:24px;margin:0;text-transform:uppercase;letter-spacing:.02em}
+h3{font-family:var(--f-display);font-weight:600;font-size:18px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.btn{font:600 14px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;cursor:pointer;border-radius:3px}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.small{padding:4px 9px;font-size:13px}
+.btn.danger{color:var(--bad)}
+.btn.danger.armed{background:var(--bad);color:var(--accent-ink);border-color:var(--bad)}
+.btn[disabled]{opacity:.5;cursor:default}
+select,input,textarea{font:15px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:7px 9px;width:100%}
+select.inline{width:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:22px}
+.kpi{background:var(--surface);padding:14px 16px}
+.kpi .l{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.kpi .v{font-family:var(--f-display);font-weight:700;font-size:30px;color:var(--navy);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:4px}
+.kpi .s{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.kpi.profit .v{color:var(--good)} .kpi.profit.neg .v{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:22px}
+.panel{background:var(--surface);border:1px solid var(--line);padding:16px;min-width:0}
+.tw{overflow-x:auto;background:var(--surface);border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:9px 10px;border-bottom:2px solid var(--navy);white-space:nowrap;font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.d{font-family:var(--f-mono);white-space:nowrap;font-size:13px}
+td.act{white-space:nowrap;text-align:right}
+td.act .btn{margin-left:4px}
+tfoot td{font-weight:600;border-top:2px solid var(--ink)}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--chip);color:var(--ink);white-space:nowrap}
+.chip.good{color:var(--good)} .chip.warn{color:var(--warn)} .chip.bad{color:var(--bad)}
+.chip.ex{background:var(--accent);color:var(--accent-ink)}
+.muted{color:var(--muted)}
+.sub{font-size:12px;color:var(--muted)}
+.empty{padding:34px 18px;text-align:center;color:var(--muted);border:1px dashed var(--line);background:var(--surface)}
+.empty strong{display:block;color:var(--ink);font-family:var(--f-display);font-size:20px;text-transform:uppercase;margin-bottom:4px}
+.banner{border:1px solid var(--warn);color:var(--ink);background:var(--surface);padding:10px 14px;margin-bottom:16px;font-size:14px}
+.banner.ex{border-color:var(--accent);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.bars{display:flex;flex-direction:column;gap:8px}
+.brow{display:grid;grid-template-columns:minmax(90px,140px) 1fr auto;gap:10px;align-items:center;font-size:14px}
+.brow .track{height:10px;background:var(--chip);position:relative}
+.brow .fill{position:absolute;inset:0 auto 0 0;background:var(--navy)}
+.brow .val{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.note{font-size:13px;color:var(--muted);margin-top:10px;max-width:70ch}
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(10,15,25,.55);display:flex;align-items:flex-start;justify-content:center;padding:max(24px,env(safe-area-inset-top,0px)) 12px 24px;overflow-y:auto;z-index:20}
+.modal{background:var(--surface);border-top:4px solid var(--navy);box-shadow:0 4px 0 var(--accent) inset;width:min(560px,100%);padding:18px}
+.modal h2{margin-bottom:14px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form .full{grid-column:1/-1}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);min-width:0}
+.form label.chk{flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--ink);font-weight:500}
+.form label.chk input{width:auto}
+.form .hint{font-size:12px;text-transform:none;letter-spacing:0;font-weight:400}
+.mact{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--navy);color:var(--surface);padding:9px 16px;font-size:14px;z-index:30;border-radius:3px;max-width:90vw}
+@media (max-width:520px){.form{grid-template-columns:1fr}.kpi .v{font-size:26px}}
+@media (prefers-reduced-motion:no-preference){.modal{animation:up .16s ease-out}@keyframes up{from{transform:translateY(8px);opacity:.6}}}
+.login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px;z-index:40;overflow-y:auto}
+.lbox{background:var(--surface);border:1px solid var(--line);border-top:5px solid var(--navy);box-shadow:inset 0 4px 0 var(--accent);width:min(400px,100%);padding:26px 24px;display:flex;flex-direction:column;gap:14px}
+.lbox .logo{align-self:center}.lbox .logo img{height:110px}
+.lbox h2{text-align:center;color:var(--navy)}
+.lbox label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.lerr{color:var(--bad);font-size:14px;min-height:1.2em;margin:0}
+.who{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+body{margin:0;font-size:15px}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><img src="../logo.webp" alt="CMC Logistic Express"></div>
+      <div><h1>Panel de control</h1>
+      <p><span class="tag">LLC</span>Área de trabajo: <b>Houston</b> · Entregas, drivers independientes, pagos y gastos</p></div>
+    </div>
+    <div class="who"><a class="btn small" href="../">Ir a Louisiana →</a><div class="sync" id="sync">Conectando…</div><button class="btn small" id="logout" hidden>Cerrar sesión</button></div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <div id="banners"></div>
+  <main id="view"></main>
+</div>
+<div id="modalRoot"></div>
+<div class="login" id="login">
+  <form class="lbox" id="lform" novalidate>
+    <div class="logo"><img src="../logo.webp" alt="CMC Logistic Express"></div>
+    <h2>Panel de control · Houston</h2>
+    <label for="lemail">Usuario (correo)<input id="lemail" type="email" autocomplete="username" required></label>
+    <label for="lpass">Contraseña<input id="lpass" type="password" autocomplete="current-password" required></label>
+    <p class="lerr" id="lerr"></p>
+    <button class="btn primary" id="lbtn" type="submit">Entrar</button>
+  </form>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../firebase-config.js"></script>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=n=>(n<0?"-":"")+"$"+Math.abs(+n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=n=>(+n||0).toLocaleString("en-US");
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const today=()=>iso(new Date());
+const fmtD=s=>{if(!s)return"";const[y,m,d]=s.split("-");return m+"/"+d+"/"+y};
+
+const COLS=["drivers","entregas","pagos","gastos","retiros"];
+const S={drivers:[],entregas:[],pagos:[],gastos:[],retiros:[]};
+let db=null, dl=null, tab="resumen", periodo="mes", anio1099=String(new Date().getFullYear()-0), umbral=2000;
+let loaded={};
+try{tab=localStorage.getItem("cmc_tab")||tab;periodo=localStorage.getItem("cmc_per")||periodo}catch(e){}
+
+const TABS=[["resumen","Resumen"],["entregas","Entregas"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["socios","Socios"],["1099","1099 / Impuestos"]];
+const SOCIOS=["Claribel Alfonso","Felipe Alfonso","Daianna Velasquez"];
+const METODOS=["Zelle","Transferencia","Cheque","Efectivo","Cash App","Otro"];
+const CATS=["Combustible","Seguro","Mantenimiento vehículo","Software / apps","Permisos y licencias","Renta / bodega","Teléfono","Oficina","Contador / legal","Publicidad","Otro"];
+const PAGO_TIPO={paquete:"Por paquete entregado",ruta:"Tarifa fija por ruta/día",manual:"Monto manual"};
+
+function drv(id){return S.drivers.find(d=>d.id===id)}
+function drvName(id){const d=drv(id);return d?d.nombre:"(driver eliminado)"}
+
+/* ---------- periodos ---------- */
+function rango(p){
+  const n=new Date(), y=n.getFullYear(), m=n.getMonth();
+  if(p==="semana"){const d=new Date(n);const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow);const e=new Date(d);e.setDate(d.getDate()+6);return[iso(d),iso(e)]}
+  if(p==="semanaPasada"){const d=new Date(n);const dow=(d.getDay()+6)%7;d.setDate(d.getDate()-dow-7);const e=new Date(d);e.setDate(d.getDate()+6);return[iso(d),iso(e)]}
+  if(p==="mes")return[iso(new Date(y,m,1)),iso(new Date(y,m+1,0))];
+  if(p==="mesPasado")return[iso(new Date(y,m-1,1)),iso(new Date(y,m,0))];
+  if(p==="anio")return[y+"-01-01",y+"-12-31"];
+  return["0000-01-01","9999-12-31"];
+}
+const PERIODOS=[["semana","Esta semana"],["semanaPasada","Semana pasada"],["mes","Este mes"],["mesPasado","Mes pasado"],["anio","Este año"],["todo","Todo"]];
+const inR=(f,[a,b])=>f>=a&&f<=b;
+function periodSelect(){return `<select class="inline" id="per" aria-label="Periodo">${PERIODOS.map(([k,l])=>`<option value="${k}"${k===periodo?" selected":""}>${l}</option>`).join("")}</select>`}
+
+/* ---------- cálculos ---------- */
+function saldos(){
+  const m={};
+  S.drivers.forEach(d=>m[d.id]={ganado:0,pagado:0});
+  S.entregas.forEach(e=>{(m[e.driverId]??={ganado:0,pagado:0}).ganado+=+e.pagoDriver||0});
+  S.pagos.forEach(p=>{(m[p.driverId]??={ganado:0,pagado:0}).pagado+=+p.monto||0});
+  return m;
+}
+function totales(r){
+  const E=S.entregas.filter(e=>inR(e.fecha,r)), P=S.pagos.filter(p=>inR(p.fecha,r)), G=S.gastos.filter(g=>inR(g.fecha,r));
+  const ingreso=E.reduce((s,e)=>s+(+e.ingreso||0),0);
+  const costoDrivers=E.reduce((s,e)=>s+(+e.pagoDriver||0),0);
+  const gastos=G.reduce((s,g)=>s+(+g.monto||0),0);
+  const pagado=P.reduce((s,p)=>s+(+p.monto||0),0);
+  const paq=E.reduce((s,e)=>s+(+e.paquetes||0),0), ent=E.reduce((s,e)=>s+(+e.entregados||0),0), per=E.reduce((s,e)=>s+(+e.perdidos||0),0);
+  return{E,P,G,ingreso,costoDrivers,gastos,pagado,paq,ent,per,ganancia:ingreso-costoDrivers-gastos};
+}
+
+/* ---------- render ---------- */
+function renderTabs(){
+  $("#tabs").innerHTML=TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${k===tab}">${l}</button>`).join("");
+}
+function renderBanners(){
+  let h="";
+  
+  const ex=COLS.reduce((s,c)=>s+S[c].filter(x=>x.ejemplo).length,0);
+  if(ex) h+=`<div class="banner ex"><span>Hay <b>${ex}</b> registros de <span class="chip ex">Ejemplo</span> para que veas cómo funciona. Bórralos cuando empieces a meter tus datos reales.</span><button class="btn small" id="delEx">Borrar ejemplos</button></div>`;
+  $("#banners").innerHTML=h;
+}
+function exChip(x){return x.ejemplo?` <span class="chip ex">Ejemplo</span>`:""}
+function rowActions(col,id){return `<td class="act"><button class="btn small" data-edit="${col}" data-id="${id}">Editar</button><button class="btn small danger" data-del="${col}" data-id="${id}">Eliminar</button></td>`}
+
+function render(){
+  renderTabs(); renderBanners();
+  const v=$("#view");
+  if(!db)return;
+  if(!COLS.every(c=>loaded[c])){v.innerHTML=`<div class="empty"><strong>Cargando</strong>Leyendo tus registros…</div>`;return}
+  ({resumen:vResumen,entregas:vEntregas,drivers:vDrivers,pagos:vPagos,gastos:vGastos,socios:vSocios,"1099":v1099}[tab]||vResumen)(v);
+}
+
+function vResumen(v){
+  const r=rango(periodo), t=totales(r), sal=saldos();
+  const tasa=t.paq?(t.ent/t.paq*100):0;
+  const pend=S.drivers.map(d=>({d,s:sal[d.id]})).filter(x=>Math.abs(x.s.ganado-x.s.pagado)>0.004).sort((a,b)=>(b.s.ganado-b.s.pagado)-(a.s.ganado-a.s.pagado));
+  const porDriver={}; t.E.forEach(e=>{porDriver[e.driverId]=(porDriver[e.driverId]||0)+(+e.entregados||0)});
+  const perD={},asgD={}; t.E.forEach(e=>{perD[e.driverId]=(perD[e.driverId]||0)+(+e.perdidos||0);asgD[e.driverId]=(asgD[e.driverId]||0)+(+e.paquetes||0)});
+  const perdL=Object.entries(perD).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const ranking=Object.entries(porDriver).sort((a,b)=>b[1]-a[1]).slice(0,8), maxR=Math.max(1,...ranking.map(x=>x[1]));
+  const porCat={}; t.G.forEach(g=>{porCat[g.categoria]=(porCat[g.categoria]||0)+(+g.monto||0)});
+  const cats=Object.entries(porCat).sort((a,b)=>b[1]-a[1]), maxC=Math.max(1,...cats.map(x=>x[1]));
+  const alertas=S.drivers.filter(d=>d.activo!==false&&(!d.w9||(d.vencSeguro&&d.vencSeguro<=iso(new Date(Date.now()+30*864e5)))));
+  v.innerHTML=`
+  <div class="bar"><div class="left"><h2>Resumen</h2>${periodSelect()}</div><span class="sub">${fmtD(r[0])==="01/01/0000"?"Todo el historial":fmtD(r[0])+" – "+fmtD(r[1])}</span></div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">Ingresos (cobro a clientes)</div><div class="v">${money(t.ingreso)}</div><div class="s">${t.E.length} rutas</div></div>
+    <div class="kpi"><div class="l">Costo de drivers</div><div class="v">${money(t.costoDrivers)}</div><div class="s">pagado en periodo ${money(t.pagado)}</div></div>
+    <div class="kpi"><div class="l">Gastos</div><div class="v">${money(t.gastos)}</div><div class="s">${t.G.length} registros</div></div>
+    <div class="kpi profit${t.ganancia<0?" neg":""}"><div class="l">Ganancia</div><div class="v">${money(t.ganancia)}</div><div class="s">margen ${t.ingreso?(t.ganancia/t.ingreso*100).toFixed(1):"0.0"}%</div></div>
+    <div class="kpi"><div class="l">Paquetes entregados</div><div class="v">${num(t.ent)}</div><div class="s">de ${num(t.paq)} · ${tasa.toFixed(1)}% éxito${t.per?` · <span style="color:var(--bad)">${num(t.per)} perdidos</span>`:""}</div></div>
+  </div>
+  <div class="grid2">
+    <section class="panel"><h3>Ganancia por socio (1/3 cada uno)</h3>
+      <div class="bars">${SOCIOS.map(n=>`<div class="brow"><span>${esc(n)}</span><span></span><span class="val" style="color:${t.ganancia<0?"var(--bad)":"var(--good)"}">${money(t.ganancia/SOCIOS.length)}</span></div>`).join("")}</div>
+      <p class="note">Detalle y retiros en la pestaña Socios.</p>
+    </section>
+    <section class="panel"><h3>Saldo pendiente con drivers</h3>
+      ${pend.length?`<div class="tw" style="border:0"><table><thead><tr><th>Driver</th><th class="n">Ganado</th><th class="n">Pagado</th><th class="n">Debes</th></tr></thead><tbody>
+      ${pend.map(({d,s})=>`<tr><td>${esc(d.nombre)}${exChip(d)}</td><td class="n">${money(s.ganado)}</td><td class="n">${money(s.pagado)}</td><td class="n"><b style="color:${s.ganado-s.pagado>0?"var(--warn)":"var(--good)"}">${money(s.ganado-s.pagado)}</b></td></tr>`).join("")}
+      </tbody></table></div><p class="note">Todo el historial: lo que cada driver ganó por sus rutas menos lo que ya le pagaste. Negativo = adelanto.</p>`:`<p class="muted">Estás al día con todos tus drivers.</p>`}
+    </section>
+    <section class="panel"><h3>Paquetes entregados por driver</h3>
+      ${ranking.length?`<div class="bars">${ranking.map(([id,n])=>`<div class="brow"><span>${esc(drvName(id))}</span><span class="track"><span class="fill" style="width:${n/maxR*100}%"></span></span><span class="val">${num(n)}</span></div>`).join("")}</div>`:`<p class="muted">Sin entregas en este periodo.</p>`}
+    </section>
+    <section class="panel"><h3>Paquetes perdidos por driver</h3>
+      ${perdL.length?`<div class="tw" style="border:0"><table><thead><tr><th>Driver</th><th class="n">Perdidos</th><th class="n">Asignados</th><th class="n">% perdidos</th></tr></thead><tbody>${perdL.map(([id,n])=>`<tr><td>${esc(drvName(id))}</td><td class="n"><b style="color:var(--bad)">${num(n)}</b></td><td class="n">${num(asgD[id])}</td><td class="n">${asgD[id]?(n/asgD[id]*100).toFixed(2):"0.00"}%</td></tr>`).join("")}</tbody></table></div><h3 style="margin-top:14px">Detalle por fecha</h3><div class="tw" style="border:0"><table><thead><tr><th>Fecha</th><th>Driver</th><th>Ruta</th><th class="n">Perdidos</th></tr></thead><tbody>${t.E.filter(e=>+e.perdidos>0).sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(e=>`<tr><td class="d">${fmtD(e.fecha)}</td><td>${esc(drvName(e.driverId))}</td><td>${esc(e.ruta||"")}</td><td class="n"><b style="color:var(--bad)">${num(e.perdidos)}</b></td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">Ningún paquete perdido en este periodo.</p>`}
+    </section>
+    <section class="panel"><h3>Gastos por categoría</h3>
+      ${cats.length?`<div class="bars">${cats.map(([c,n])=>`<div class="brow"><span>${esc(c)}</span><span class="track"><span class="fill" style="width:${n/maxC*100}%;background:var(--accent)"></span></span><span class="val">${money(n)}</span></div>`).join("")}</div>`:`<p class="muted">Sin gastos en este periodo.</p>`}
+    </section>
+    <section class="panel"><h3>Documentos de drivers</h3>
+      ${alertas.length?`<div class="bars">${alertas.map(d=>`<div>${esc(d.nombre)} ${!d.w9?`<span class="chip bad">Falta W-9</span>`:""} ${d.vencSeguro&&d.vencSeguro<=iso(new Date(Date.now()+30*864e5))?`<span class="chip ${d.vencSeguro<today()?"bad":"warn"}">Seguro ${d.vencSeguro<today()?"vencido":"vence"} ${fmtD(d.vencSeguro)}</span>`:""}</div>`).join("")}</div>`:`<p class="muted">Todos los drivers activos tienen W-9 y seguro al día.</p>`}
+    </section>
+  </div>`;
+}
+
+function filtroDriver(id){return `<select class="inline" id="fDrv" aria-label="Filtrar por driver"><option value="">Todos los drivers</option>${S.drivers.map(d=>`<option value="${d.id}"${d.id===id?" selected":""}>${esc(d.nombre)}</option>`).join("")}</select>`}
+let fDrv="";
+
+function vEntregas(v){
+  const r=rango(periodo);
+  const L=S.entregas.filter(e=>inR(e.fecha,r)&&(!fDrv||e.driverId===fDrv)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const sum=k=>L.reduce((s,e)=>s+(+e[k]||0),0);
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Entregas</h2>${periodSelect()}${filtroDriver(fDrv)}</div><div class="left"><button class="btn" data-csv="entregas">Exportar CSV</button><button class="btn primary" data-new="entregas">+ Registrar ruta</button></div></div>
+  ${L.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Driver</th><th>Ruta / cliente</th><th class="n">Paquetes</th><th class="n">Entregados</th><th class="n">Devueltos</th><th class="n">Perdidos</th><th class="n">Cobro</th><th class="n">Pago driver</th><th class="n">Margen</th><th></th></tr></thead><tbody>
+  ${L.map(e=>{const pd=+e.perdidos||0,f=(+e.paquetes||0)-(+e.entregados||0)-pd;return`<tr><td class="d">${fmtD(e.fecha)}</td><td>${esc(drvName(e.driverId))}${exChip(e)}</td><td>${esc(e.ruta||"")}${e.cliente?`<div class="sub">${esc(e.cliente)}</div>`:""}</td><td class="n">${num(e.paquetes)}</td><td class="n">${num(e.entregados)}</td><td class="n">${f>0?`<span style="color:var(--warn)">${f}</span>`:"0"}</td><td class="n">${pd>0?`<b style="color:var(--bad)">${pd}</b>`:"0"}</td><td class="n">${money(e.ingreso)}</td><td class="n">${money(e.pagoDriver)}</td><td class="n">${money((+e.ingreso||0)-(+e.pagoDriver||0))}</td>${rowActions("entregas",e.id)}</tr>`}).join("")}
+  </tbody><tfoot><tr><td colspan="3">${L.length} rutas</td><td class="n">${num(sum("paquetes"))}</td><td class="n">${num(sum("entregados"))}</td><td class="n">${num(sum("paquetes")-sum("entregados")-sum("perdidos"))}</td><td class="n">${num(sum("perdidos"))}</td><td class="n">${money(sum("ingreso"))}</td><td class="n">${money(sum("pagoDriver"))}</td><td class="n">${money(sum("ingreso")-sum("pagoDriver"))}</td><td></td></tr></tfoot></table></div>`
+  :`<div class="empty"><strong>Sin rutas en este periodo</strong>${S.drivers.length?"Registra cada ruta del día: driver, paquetes, entregados y lo que cobras al cliente.":"Primero agrega un driver en la pestaña Drivers."}</div>`}`;
+}
+
+function vDrivers(v){
+  const sal=saldos();
+  const L=[...S.drivers].sort((a,b)=>(b.activo!==false)-(a.activo!==false)||a.nombre.localeCompare(b.nombre));
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Drivers independientes</h2><span class="sub">${S.drivers.filter(d=>d.activo!==false).length} activos</span></div><div class="left"><button class="btn" data-csv="drivers">Exportar CSV</button><button class="btn primary" data-new="drivers">+ Agregar driver</button></div></div>
+  ${L.length?`<div class="tw"><table><thead><tr><th>Nombre</th><th>Contacto</th><th>Vehículo</th><th>Forma de pago</th><th>Documentos</th><th class="n">Perdidos</th><th class="n">Le debes</th><th></th></tr></thead><tbody>
+  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id)}</tr>`}).join("")}
+  </tbody></table></div><p class="note">Como contratistas 1099, pide a cada driver su formulario W-9 antes del primer pago y guarda copia de su licencia y seguro del vehículo.</p>`
+  :`<div class="empty"><strong>Aún no tienes drivers</strong>Agrega a tus drivers independientes con su forma de pago (por paquete o por ruta).</div>`}`;
+}
+
+function vPagos(v){
+  const r=rango(periodo);
+  const L=S.pagos.filter(p=>inR(p.fecha,r)&&(!fDrv||p.driverId===fDrv)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const tot=L.reduce((s,p)=>s+(+p.monto||0),0);
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Pagos a drivers</h2>${periodSelect()}${filtroDriver(fDrv)}</div><div class="left"><button class="btn" data-csv="pagos">Exportar CSV</button><button class="btn primary" data-new="pagos">+ Registrar pago</button></div></div>
+  ${L.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Driver</th><th>Método</th><th>Referencia</th><th>Periodo cubierto</th><th class="n">Monto</th><th></th></tr></thead><tbody>
+  ${L.map(p=>`<tr><td class="d">${fmtD(p.fecha)}</td><td>${esc(drvName(p.driverId))}${exChip(p)}</td><td>${esc(p.metodo||"")}</td><td class="d">${esc(p.referencia||"")}</td><td>${esc(p.periodo||"")}</td><td class="n">${money(p.monto)}</td>${rowActions("pagos",p.id)}</tr>`).join("")}
+  </tbody><tfoot><tr><td colspan="5">${L.length} pagos</td><td class="n">${money(tot)}</td><td></td></tr></tfoot></table></div>`
+  :`<div class="empty"><strong>Sin pagos en este periodo</strong>Registra cada pago que haces a un driver; esto alimenta el saldo pendiente y el reporte 1099.</div>`}`;
+}
+
+function vGastos(v){
+  const r=rango(periodo);
+  const L=S.gastos.filter(g=>inR(g.fecha,r)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const tot=L.reduce((s,g)=>s+(+g.monto||0),0);
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Gastos de la LLC</h2>${periodSelect()}</div><div class="left"><button class="btn" data-csv="gastos">Exportar CSV</button><button class="btn primary" data-new="gastos">+ Registrar gasto</button></div></div>
+  ${L.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Categoría</th><th>Proveedor</th><th>Descripción</th><th class="n">Monto</th><th></th></tr></thead><tbody>
+  ${L.map(g=>`<tr><td class="d">${fmtD(g.fecha)}</td><td><span class="chip">${esc(g.categoria||"Otro")}</span>${exChip(g)}</td><td>${esc(g.proveedor||"")}</td><td>${esc(g.descripcion||"")}</td><td class="n">${money(g.monto)}</td>${rowActions("gastos",g.id)}</tr>`).join("")}
+  </tbody><tfoot><tr><td colspan="4">${L.length} gastos</td><td class="n">${money(tot)}</td><td></td></tr></tfoot></table></div>`
+  :`<div class="empty"><strong>Sin gastos en este periodo</strong>Anota combustible, seguro, apps, permisos y todo lo que paga la empresa. Guarda el recibo.</div>`}`;
+}
+
+function vSocios(v){
+  const r=rango(periodo), t=totales(r), parte=t.ganancia/SOCIOS.length;
+  const R=S.retiros.filter(x=>inR(x.fecha,r)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const ret=n=>R.filter(x=>x.socio===n).reduce((s,x)=>s+(+x.monto||0),0);
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Socios</h2>${periodSelect()}</div><div class="left"><button class="btn" data-csv="retiros">Exportar CSV</button><button class="btn primary" data-new="retiros">+ Registrar retiro</button></div></div>
+  <div class="kpis">
+    <div class="kpi profit${t.ganancia<0?" neg":""}"><div class="l">Ganancia de la empresa</div><div class="v">${money(t.ganancia)}</div><div class="s">${fmtD(r[0])==="01/01/0000"?"Todo el historial":fmtD(r[0])+" – "+fmtD(r[1])}</div></div>
+    ${SOCIOS.map(n=>`<div class="kpi"><div class="l">${esc(n)} · 1/3</div><div class="v">${money(parte)}</div><div class="s">retirado ${money(ret(n))} · queda ${money(parte-ret(n))}</div></div>`).join("")}
+  </div>
+  <h3>Retiros de socios</h3>
+  ${R.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Socio</th><th>Método</th><th>Notas</th><th class="n">Monto</th><th></th></tr></thead><tbody>
+  ${R.map(x=>`<tr><td class="d">${fmtD(x.fecha)}</td><td>${esc(x.socio)}${exChip(x)}</td><td>${esc(x.metodo||"")}</td><td>${esc(x.notas||"")}</td><td class="n">${money(x.monto)}</td>${rowActions("retiros",x.id)}</tr>`).join("")}
+  </tbody><tfoot><tr><td colspan="4">${R.length} retiros</td><td class="n">${money(R.reduce((s,x)=>s+(+x.monto||0),0))}</td><td></td></tr></tfoot></table></div>`
+  :`<div class="empty"><strong>Sin retiros en este periodo</strong>Registra cada vez que un socio saca dinero de la empresa, con su fecha.</div>`}
+  <p class="note">La ganancia se reparte en partes iguales entre los 3 socios: ingresos menos pago a drivers menos gastos del periodo elegido. "Queda" es la parte de cada socio menos lo que ya retiró en ese periodo.</p>`;
+}
+
+function v1099(v){
+  const yrs=new Set([String(new Date().getFullYear())]); S.pagos.forEach(p=>p.fecha&&yrs.add(p.fecha.slice(0,4)));
+  const ys=[...yrs].sort().reverse(); if(!ys.includes(anio1099))anio1099=ys[0];
+  const tot={}; S.pagos.filter(p=>p.fecha?.startsWith(anio1099)).forEach(p=>tot[p.driverId]=(tot[p.driverId]||0)+(+p.monto||0));
+  const L=Object.entries(tot).map(([id,m])=>({d:drv(id),id,m})).sort((a,b)=>b.m-a.m);
+  const r=[anio1099+"-01-01",anio1099+"-12-31"], t=totales(r);
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Reporte 1099-NEC</h2><select class="inline" id="y1099" aria-label="Año">${ys.map(y=>`<option${y===anio1099?" selected":""}>${y}</option>`).join("")}</select>
+  <label class="sub" for="umb">Umbral $</label><input id="umb" type="number" min="0" step="100" value="${umbral}" style="width:100px"></div><button class="btn" data-csv="1099">Exportar CSV</button></div>
+  ${L.length?`<div class="tw"><table><thead><tr><th>Driver</th><th>Teléfono / email</th><th>W-9</th><th class="n">Pagado en ${anio1099}</th><th>¿Requiere 1099?</th></tr></thead><tbody>
+  ${L.map(({d,m})=>`<tr><td>${esc(d?d.nombre:"(driver eliminado)")}${d?exChip(d):""}</td><td>${esc(d?.telefono||"")}<div class="sub">${esc(d?.email||"")}</div></td><td>${d?.w9?`<span class="chip good">Recibido</span>`:`<span class="chip bad">Falta</span>`}</td><td class="n">${money(m)}</td><td>${m>=umbral?`<span class="chip warn">Sí, emitir 1099-NEC</span>`:`<span class="chip">No llega al umbral</span>`}</td></tr>`).join("")}
+  </tbody></table></div>`:`<div class="empty"><strong>Sin pagos en ${anio1099}</strong>Cuando registres pagos a drivers, aquí verás el total del año por cada uno.</div>`}
+  <div class="kpis" style="margin-top:22px">
+    <div class="kpi"><div class="l">Ingresos ${anio1099}</div><div class="v">${money(t.ingreso)}</div></div>
+    <div class="kpi"><div class="l">Pagado a contratistas</div><div class="v">${money(t.pagado)}</div></div>
+    <div class="kpi"><div class="l">Otros gastos</div><div class="v">${money(t.gastos)}</div></div>
+    <div class="kpi profit${t.ingreso-t.pagado-t.gastos<0?" neg":""}"><div class="l">Utilidad aprox. (base caja)</div><div class="v">${money(t.ingreso-t.pagado-t.gastos)}</div></div>
+  </div>
+  <p class="note">El 1099-NEC se basa en lo que realmente pagaste en el año (pestaña Pagos). El umbral cambió a $2,000 para pagos hechos a partir de 2026 (antes $600); ajústalo arriba si tu contador te indica otro monto. Los 1099-NEC se entregan a cada driver y al IRS a más tardar el 31 de enero. Esto es una guía de control, no asesoría fiscal; confírmalo con tu contador.</p>`;
+}
+
+/* ---------- formularios ---------- */
+const F={
+  drivers:{t:"Driver",f:[
+    ["nombre","Nombre completo","text",{req:1,full:1}],["telefono","Teléfono","tel"],["email","Email","email"],
+    ["vehiculo","Vehículo","text",{ph:"Ej. Ford Transit 2021"}],["placa","Placa","text"],
+    ["pagoTipo","Forma de pago","select",{opts:Object.entries(PAGO_TIPO)}],["tarifa","Tarifa $","number",{hint:"Por paquete o por ruta"}],
+    ["vencSeguro","Vence seguro del vehículo","date"],["fechaInicio","Fecha de inicio","date"],
+    ["w9","W-9 recibido","check"],["activo","Activo","check",{def:true}],["notas","Notas","textarea",{full:1}]]},
+  entregas:{t:"Ruta / entrega",f:[
+    ["fecha","Fecha","date",{req:1,def:today}],["driverId","Driver","driver",{req:1}],
+    ["ruta","Ruta / zona","text",{ph:"Ej. Ruta 12 – Katy"}],["cliente","Cliente","text",{ph:"Ej. Amazon DSP, FedEx, tienda local"}],
+    ["paquetes","Paquetes asignados","number",{req:1}],["entregados","Paquetes entregados","number",{req:1}],["perdidos","Paquetes perdidos","number",{hint:"Paquetes que se perdieron o no aparecieron"}],
+    ["ingreso","Cobro al cliente $","number",{hint:"Lo que la LLC cobra por esta ruta"}],["pagoDriver","Pago al driver $","number",{hint:"Se calcula con la tarifa del driver; puedes cambiarlo"}],
+    ["notas","Notas","textarea",{full:1,ph:"Incidencias, devoluciones, millas…"}]]},
+  pagos:{t:"Pago a driver",f:[
+    ["fecha","Fecha del pago","date",{req:1,def:today}],["driverId","Driver","driver",{req:1}],
+    ["monto","Monto $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
+    ["referencia","Referencia / # cheque","text"],["periodo","Periodo cubierto","text",{ph:"Ej. Semana 9/28 – 10/4"}],
+    ["notas","Notas","textarea",{full:1}]]},
+  retiros:{t:"Retiro de socio",f:[
+    ["fecha","Fecha","date",{req:1,def:today}],["socio","Socio","select",{opts:SOCIOS.map(s=>[s,s])}],
+    ["monto","Monto $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
+    ["notas","Notas","textarea",{full:1}]]},
+  gastos:{t:"Gasto",f:[
+    ["fecha","Fecha","date",{req:1,def:today}],["categoria","Categoría","select",{opts:CATS.map(c=>[c,c])}],
+    ["monto","Monto $","number",{req:1}],["proveedor","Proveedor","text"],["descripcion","Descripción","textarea",{full:1}]]}
+};
+const NUMS=new Set(["tarifa","paquetes","entregados","perdidos","ingreso","pagoDriver","monto"]);
+
+function calcPago(driverId,entregados){
+  const d=drv(driverId); if(!d)return null;
+  if(d.pagoTipo==="paquete")return Math.round((+d.tarifa||0)*(+entregados||0)*100)/100;
+  if(d.pagoTipo==="ruta")return +d.tarifa||0;
+  return null;
+}
+
+let editing=null, pagoTouched=false;
+function openForm(col,id,preset){
+  const sch=F[col], doc=id?S[col].find(x=>x.id===id):null;
+  if(col!=="drivers"&&!S.drivers.length&&(col==="entregas"||col==="pagos")){toast("Primero agrega un driver.");tab="drivers";render();return}
+  editing={col,id}; pagoTouched=!!doc;
+  const val=(k,o)=>{if(doc)return doc[k];if(preset&&k in preset)return preset[k];const d=o?.def;return typeof d==="function"?d():d};
+  const fields=sch.f.map(([k,l,type,o={}])=>{
+    const v=val(k,o), cls=o.full?' class="full"':"", fid="f_"+k, rq=o.req?" required":"";
+    if(type==="check")return `<label class="chk"><input type="checkbox" id="${fid}" name="${k}"${(v??false)?" checked":""}>${l}</label>`;
+    let inp;
+    if(type==="select")inp=`<select id="${fid}" name="${k}">${o.opts.map(([a,b])=>`<option value="${esc(a)}"${a===v?" selected":""}>${esc(b)}</option>`).join("")}</select>`;
+    else if(type==="driver")inp=`<select id="${fid}" name="${k}"${rq}><option value="">Elige un driver…</option>${S.drivers.filter(d=>d.activo!==false||d.id===v).map(d=>`<option value="${d.id}"${d.id===v?" selected":""}>${esc(d.nombre)}</option>`).join("")}</select>`;
+    else if(type==="textarea")inp=`<textarea id="${fid}" name="${k}" rows="2" placeholder="${esc(o.ph||"")}">${esc(v??"")}</textarea>`;
+    else inp=`<input id="${fid}" name="${k}" type="${type}"${type==="number"?' step="0.01" min="0" inputmode="decimal"':""} value="${esc(v??"")}" placeholder="${esc(o.ph||"")}"${rq}>`;
+    return `<label${cls} for="${fid}">${l}${o.req?" *":""}${inp}${o.hint?`<span class="hint">${o.hint}</span>`:""}</label>`;
+  }).join("");
+  $("#modalRoot").innerHTML=`<div class="ov" id="ov"><form class="modal" id="frm" novalidate><h2>${doc?"Editar":"Nuevo"}: ${sch.t}</h2><div class="form">${fields}</div><p class="sub" id="ferr" style="color:var(--bad)"></p><div class="mact"><button type="button" class="btn" id="fcancel">Cancelar</button><button type="submit" class="btn primary" id="fsave">Guardar</button></div></form></div>`;
+  const first=$("#frm input,#frm select"); first&&first.focus();
+  if(col==="entregas"){
+    const upd=()=>{if(pagoTouched)return;const p=calcPago($("#f_driverId").value,$("#f_entregados").value);if(p!=null)$("#f_pagoDriver").value=p};
+    $("#f_driverId").addEventListener("change",()=>{pagoTouched=false;upd()});
+    $("#f_entregados").addEventListener("input",upd);
+    $("#f_pagoDriver").addEventListener("input",()=>pagoTouched=true);
+    if(!doc)upd();
+  }
+}
+function closeForm(){$("#modalRoot").innerHTML="";editing=null}
+
+async function saveForm(e){
+  e.preventDefault();
+  const {col,id}=editing, sch=F[col], out={};
+  for(const [k,l,type,o={}] of sch.f){
+    const el=$("#f_"+k);
+    let v=type==="check"?el.checked:el.value.trim();
+    if(NUMS.has(k))v=v===""?0:Math.round(parseFloat(v)*100)/100;
+    if(o.req&&(v===""||(NUMS.has(k)&&isNaN(v)))){$("#ferr").textContent=`Falta: ${l}.`;el.focus();return}
+    out[k]=v;
+  }
+  if(col==="entregas"&&out.entregados+out.perdidos>out.paquetes){$("#ferr").textContent="Entregados + perdidos no puede ser mayor que paquetes asignados.";return}
+  const prev=id?S[col].find(x=>x.id===id):null;
+  if(prev?.ejemplo)out.ejemplo=true;
+  out.actualizado=new Date().toISOString(); out.creado=(prev&&prev.creado)||out.actualizado;
+  $("#fsave").disabled=true;
+  try{await put(col,id,out);closeForm();toast(id?"Cambios guardados":"Guardado")}
+  catch(err){$("#fsave").disabled=false;$("#ferr").textContent=errMsg(err)}
+}
+function errMsg(err){
+  const c=err?.code;
+  if(c==="permission-denied")return"Este usuario no tiene permiso para guardar.";
+  if(c==="invalid_argument")return"No tienes permiso para guardar en esta página, o un dato no es válido.";
+  if(c==="quota_exceeded")return"Se llenó el espacio de almacenamiento. Borra registros viejos o exporta y limpia.";
+  return"No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.";
+}
+
+/* ---------- almacenamiento ---------- */
+async function put(col,id,data){
+  if(!db){const nid=id||("l"+Date.now());const i=S[col].findIndex(x=>x.id===nid);const row={...data,id:nid};i>=0?S[col][i]=row:S[col].push(row);render();return}
+  const ref=id?db.collection("hou_"+col).doc(id):db.collection("hou_"+col).doc();
+  try{await ref.set(data)}catch(e){if(e?.code==="unavailable"){await new Promise(r=>setTimeout(r,600+Math.random()*600));await ref.set(data)}else throw e}
+}
+async function del(col,id){
+  if(!db){S[col]=S[col].filter(x=>x.id!==id);render();return}
+  await db.collection("hou_"+col).doc(id).delete();
+}
+
+/* ---------- CSV ---------- */
+function csv(rows){return rows.map(r=>r.map(c=>{c=String(c??"");return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c}).join(",")).join("\n")}
+function buildCsv(k){
+  if(k==="entregas")return csv([["Fecha","Driver","Ruta","Cliente","Paquetes","Entregados","Devueltos","Perdidos","Cobro","Pago driver","Margen","Notas"],...S.entregas.filter(e=>inR(e.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(e=>[e.fecha,drvName(e.driverId),e.ruta,e.cliente,e.paquetes,e.entregados,(e.paquetes||0)-(e.entregados||0)-(e.perdidos||0),e.perdidos||0,e.ingreso,e.pagoDriver,((+e.ingreso||0)-(+e.pagoDriver||0)).toFixed(2),e.notas])]);
+  if(k==="pagos")return csv([["Fecha","Driver","Monto","Método","Referencia","Periodo","Notas"],...S.pagos.filter(p=>inR(p.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(p=>[p.fecha,drvName(p.driverId),p.monto,p.metodo,p.referencia,p.periodo,p.notas])]);
+  if(k==="gastos")return csv([["Fecha","Categoría","Proveedor","Descripción","Monto"],...S.gastos.filter(g=>inR(g.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(g=>[g.fecha,g.categoria,g.proveedor,g.descripcion,g.monto])]);
+  if(k==="retiros")return csv([["Fecha","Socio","Monto","Método","Notas"],...S.retiros.filter(x=>inR(x.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>[x.fecha,x.socio,x.monto,x.metodo,x.notas])]);
+  if(k==="drivers")return csv([["Nombre","Teléfono","Email","Vehículo","Placa","Forma de pago","Tarifa","W-9","Vence seguro","Activo","Inicio","Notas"],...S.drivers.map(d=>[d.nombre,d.telefono,d.email,d.vehiculo,d.placa,PAGO_TIPO[d.pagoTipo],d.tarifa,d.w9?"Sí":"No",d.vencSeguro,d.activo===false?"No":"Sí",d.fechaInicio,d.notas])]);
+  if(k==="1099"){const tot={};S.pagos.filter(p=>p.fecha?.startsWith(anio1099)).forEach(p=>tot[p.driverId]=(tot[p.driverId]||0)+(+p.monto||0));
+    return csv([["Año","Driver","Teléfono","Email","W-9","Total pagado","Requiere 1099-NEC"],...Object.entries(tot).map(([id,m])=>{const d=drv(id);return[anio1099,d?.nombre||"(eliminado)",d?.telefono,d?.email,d?.w9?"Sí":"No",m.toFixed(2),m>=umbral?"Sí":"No"]})])}
+}
+function exportCsv(k){
+  const name=`CMC_${k}_${k==="1099"?anio1099:periodo}_${today()}.csv`;
+  const url=URL.createObjectURL(new Blob(["\ufeff"+buildCsv(k)],{type:"text/csv;charset=utf-8"}));
+  const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);toast("Archivo descargado");
+}
+
+/* ---------- ejemplos ---------- */
+let exArmed=false;
+async function borrarEjemplos(btn){
+  if(!exArmed){exArmed=true;btn.textContent="¿Seguro? Toca otra vez";btn.classList.add("danger","armed");setTimeout(()=>{exArmed=false;render()},4000);return}
+  btn.disabled=true;
+  for(const c of COLS)for(const x of S[c].filter(x=>x.ejemplo)){try{await del(c,x.id)}catch(e){}}
+  exArmed=false;toast("Ejemplos borrados");
+}
+
+/* ---------- eventos ---------- */
+let armed=null;
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  if(b.dataset.tab){tab=b.dataset.tab;try{localStorage.setItem("cmc_tab",tab)}catch(_){}render();return}
+  if(b.dataset.new){openForm(b.dataset.new);return}
+  if(b.dataset.edit){openForm(b.dataset.edit,b.dataset.id);return}
+  if(b.dataset.csv){exportCsv(b.dataset.csv);return}
+  if(b.dataset.del){
+    const key=b.dataset.del+"/"+b.dataset.id;
+    if(armed!==key){armed=key;document.querySelectorAll(".armed").forEach(x=>{x.classList.remove("armed");x.textContent="Eliminar"});b.classList.add("armed");b.textContent="¿Confirmar?";setTimeout(()=>{if(armed===key){armed=null;b.classList.remove("armed");b.textContent="Eliminar"}},4000);return}
+    armed=null;b.disabled=true;del(b.dataset.del,b.dataset.id).then(()=>toast("Eliminado")).catch(err=>{b.disabled=false;toast(errMsg(err))});return}
+  if(b.id==="fcancel"){closeForm();return}
+  if(b.id==="delEx"){borrarEjemplos(b);return}
+});
+document.addEventListener("submit",e=>{if(e.target.id==="frm")saveForm(e)});
+document.addEventListener("change",e=>{
+  if(e.target.id==="per"){periodo=e.target.value;try{localStorage.setItem("cmc_per",periodo)}catch(_){}render()}
+  if(e.target.id==="fDrv"){fDrv=e.target.value;render()}
+  if(e.target.id==="y1099"){anio1099=e.target.value;render()}
+  if(e.target.id==="umb"){umbral=+e.target.value||0;render()}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&editing)closeForm()});
+document.addEventListener("mousedown",e=>{if(e.target.id==="ov")closeForm()});
+
+let tt;function toast(m){let t=$(".toast");if(!t){t=document.createElement("div");t.className="toast";t.setAttribute("role","status");document.body.appendChild(t)}t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- arranque ---------- */
+let unsubs=[];
+function startData(){
+  db=firebase.firestore();
+  $("#sync").textContent="Sincronizado";
+  COLS.forEach(c=>{
+    unsubs.push(db.collection("hou_"+c).onSnapshot(snap=>{
+      S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));loaded[c]=true;
+      if(!editing)render();else{renderBanners()}
+    },err=>{$("#sync").textContent=err?.code==="permission-denied"?"Este usuario no tiene acceso":"Conexión perdida · recarga la página";loaded[c]=true;render()}));
+  });
+}
+function stopData(){unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
+const LERR={"auth/invalid-credential":"Usuario o contraseña incorrectos.","auth/wrong-password":"Usuario o contraseña incorrectos.","auth/user-not-found":"Usuario o contraseña incorrectos.","auth/invalid-email":"Escribe un correo válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos y vuelve a intentar.","auth/network-request-failed":"Sin conexión a internet."};
+if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
+  $("#lerr").textContent="Falta configurar Firebase (firebase-config.js).";$("#lbtn").disabled=true;
+}else{
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth=firebase.auth();
+  auth.onAuthStateChanged(u=>{
+    if(u){$("#login").hidden=true;$("#logout").hidden=false;$("#sync").textContent=u.email;startData();render()}
+    else{stopData();$("#login").hidden=false;$("#logout").hidden=true;$("#view").innerHTML="";$("#lemail").focus()}
+  });
+  $("#lform").addEventListener("submit",async e=>{
+    e.preventDefault();e.stopPropagation();
+    $("#lerr").textContent="";$("#lbtn").disabled=true;
+    try{await auth.signInWithEmailAndPassword($("#lemail").value.trim(),$("#lpass").value);$("#lpass").value=""}
+    catch(err){$("#lerr").textContent=LERR[err.code]||"No se pudo entrar. Inténtalo de nuevo."}
+    $("#lbtn").disabled=false;
+  });
+  $("#logout").addEventListener("click",e=>{e.stopPropagation();auth.signOut()});
+}
+})();
+</script>
+</body>
+</html>
