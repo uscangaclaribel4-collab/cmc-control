@@ -114,6 +114,27 @@ tfoot td{font-weight:600;border-top:2px solid var(--ink)}
 body{margin:0;font-size:15px}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 [hidden]{display:none!important}
+.modal.wide{width:min(760px,100%)}
+.xhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}.xhead h2{margin:0}
+.xtabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--line);margin-bottom:14px}
+.xtabs button{font:600 14px var(--f-body);background:none;border:0;padding:8px 12px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.xtabs button[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--accent)}
+.ssnrow{display:flex;gap:6px}
+.licgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:14px}
+.licbox{border:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.licbox .l,.sigwrap .lab{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.licbox img{width:100%;height:auto;border-radius:3px;background:#fff}
+.licbox .ph{aspect-ratio:1.586;display:grid;place-items:center;background:var(--chip);color:var(--muted);font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.form fieldset{border:1px solid var(--line);padding:10px 12px;display:grid;gap:8px;min-width:0;margin:0}
+.form legend{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:0 4px}
+.cert{font-size:13px;line-height:1.45;border:1px solid var(--line);padding:10px 12px;background:var(--bg)}
+.cert p{margin:6px 0}.cert .struck{text-decoration:line-through}
+.w9head{font-weight:600;color:var(--navy);margin:0}
+.sigwrap{display:flex;flex-direction:column;gap:6px}
+.sigpad{width:100%;height:170px;background:#fff;border:1px dashed var(--muted);border-radius:3px;touch-action:none;display:block;cursor:crosshair}
+.sigimg{max-width:320px;width:100%;background:#fff;border:1px solid var(--line);margin:8px 0;display:block}
+.w9dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:10px 0;font-size:14px}.w9dl dt{color:var(--muted);font-weight:600}.w9dl dd{margin:0}
 </style>
 </head>
 <body>
@@ -132,6 +153,7 @@ body{margin:0;font-size:15px}
   <main id="view"></main>
 </div>
 <div id="modalRoot"></div>
+<div id="expRoot"></div>
 <div class="login" id="login">
   <form class="lbox" id="lform" novalidate>
     <div class="logo"><img src="../logo.webp" alt="CMC Logistic Express"></div>
@@ -142,6 +164,7 @@ body{margin:0;font-size:15px}
     <button class="btn primary" id="lbtn" type="submit">Entrar</button>
   </form>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -291,8 +314,8 @@ function vDrivers(v){
   const L=[...S.drivers].sort((a,b)=>(b.activo!==false)-(a.activo!==false)||a.nombre.localeCompare(b.nombre));
   v.innerHTML=`<div class="bar"><div class="left"><h2>Drivers independientes</h2><span class="sub">${S.drivers.filter(d=>d.activo!==false).length} activos</span></div><div class="left"><button class="btn" data-csv="drivers">Exportar CSV</button><button class="btn primary" data-new="drivers">+ Agregar driver</button></div></div>
   ${L.length?`<div class="tw"><table><thead><tr><th>Nombre</th><th>Contacto</th><th>Vehículo</th><th>Forma de pago</th><th>Documentos</th><th class="n">Perdidos</th><th class="n">Le debes</th><th></th></tr></thead><tbody>
-  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id)}</tr>`}).join("")}
-  </tbody></table></div><p class="note">Como contratistas 1099, pide a cada driver su formulario W-9 antes del primer pago y guarda copia de su licencia y seguro del vehículo.</p>`
+  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}${d.licVence?` <span class="chip ${d.licVence<today()?"bad":"good"}">Licencia ${fmtD(d.licVence)}</span>`:""}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id).replace('<td class="act">','<td class="act"><button class="btn small" data-exp="'+d.id+'">Expediente</button>')}</tr>`}).join("")}
+  </tbody></table></div><p class="note">Como contratistas 1099, cada driver debe firmar su W-9 antes del primer pago. Usa el botón Expediente para guardar su licencia, SSN, fotos de la licencia y firmar el W-9.</p>`
   :`<div class="empty"><strong>Aún no tienes drivers</strong>Agrega a tus drivers independientes con su forma de pago (por paquete o por ruta).</div>`}`;
 }
 
@@ -417,7 +440,7 @@ function openForm(col,id,preset){
     if(!doc)upd();
   }
 }
-function closeForm(){$("#modalRoot").innerHTML="";editing=null}
+function closeForm(){$("#modalRoot").innerHTML="";editing=null;render()}
 
 async function saveForm(e){
   e.preventDefault();
@@ -482,6 +505,227 @@ async function borrarEjemplos(btn){
   for(const c of COLS)for(const x of S[c].filter(x=>x.ejemplo)){try{await del(c,x.id)}catch(e){}}
   exArmed=false;toast("Ejemplos borrados");
 }
+
+/* ---------- expediente del driver: licencia, SSN, fotos y W-9 ---------- */
+const PFX="hou_";
+const W9_CERT=["Under penalties of perjury, I certify that:",
+"1. The number shown on this form is my correct taxpayer identification number (or I am waiting for a number to be issued to me); and",
+"2. I am not subject to backup withholding because (a) I am exempt from backup withholding, or (b) I have not been notified by the Internal Revenue Service (IRS) that I am subject to backup withholding as a result of a failure to report all interest or dividends, or (c) the IRS has notified me that I am no longer subject to backup withholding; and",
+"3. I am a U.S. citizen or other U.S. person (defined in the Form W-9 instructions); and",
+"4. The FATCA code(s) entered on this form (if any) indicating that I am exempt from FATCA reporting is correct."];
+const W9_INSTR="Certification instructions. You must cross out item 2 above if you have been notified by the IRS that you are currently subject to backup withholding because you have failed to report all interest and dividends on your tax return. For real estate transactions, item 2 does not apply. For mortgage interest paid, acquisition or abandonment of secured property, cancellation of debt, contributions to an individual retirement arrangement (IRA), and, generally, payments other than interest and dividends, you are not required to sign the certification, but you must provide your correct TIN.";
+const W9_CLASS=[["individual","Individual/sole proprietor · Persona individual"],["ccorp","C corporation"],["scorp","S corporation"],["partnership","Partnership"],["trust","Trust/estate"],["llc","LLC"],["other","Other · Otro"]];
+const REQUESTER="CMC Logistic Express LLC";
+const digits=v=>String(v||"").replace(/\D/g,"");
+const maskTin=t=>{const d=digits(t);return d?"•••-••-"+d.slice(-4):"—"};
+const fmtSSN=v=>{const d=digits(v).slice(0,9);return d.length>5?d.slice(0,3)+"-"+d.slice(3,5)+"-"+d.slice(5):d.length>3?d.slice(0,3)+"-"+d.slice(3):d};
+const fmtEIN=v=>{const d=digits(v).slice(0,9);return d.length>2?d.slice(0,2)+"-"+d.slice(2):d};
+let X=null, sig=null;
+const xref=(c,id)=>db.collection(PFX+c).doc(id);
+async function xget(c,id){if(!db)return null;try{const s=await xref(c,id).get();return s.exists?s.data():null}catch(e){return null}}
+
+async function openExp(id,t){
+  if(!drv(id))return;
+  X={id,tab:t||"datos",priv:{},w9:null,lic:{},w9edit:false};
+  $("#expRoot").innerHTML=`<div class="ov" id="ovx"><div class="modal wide"><p class="muted">Cargando expediente…</p></div></div>`;
+  const [p,w,f,r]=await Promise.all([xget("privado",id),xget("w9",id),xget("licencias",id+"_frente"),xget("licencias",id+"_reverso")]);
+  if(!X)return;
+  X.priv=p||{};X.w9=w;X.lic={frente:f&&f.img,reverso:r&&r.img};
+  renderExp();
+}
+function closeExp(){$("#expRoot").innerHTML="";X=null;sig=null}
+
+function renderExp(){
+  const d=drv(X.id); if(!d){closeExp();return}
+  const p=X.priv, w=X.w9, D=Object.assign({},d,p);
+  const tabs=[["datos","Licencia y SSN"],["fotos","Fotos de licencia"],["w9","Formulario W-9"+(w?" ✓":"")]];
+  let body="";
+  if(X.tab==="datos"){
+    body=`<form id="fpriv" class="form" novalidate>
+      <label for="x_licNum">Número de licencia<input id="x_licNum" value="${esc(D.licNum||"")}" autocomplete="off"></label>
+      <label for="x_licEstado">Estado que la emitió<input id="x_licEstado" value="${esc(D.licEstado||"")}" placeholder="Ej. LA o TX" maxlength="20"></label>
+      <label for="x_licClase">Clase<input id="x_licClase" value="${esc(D.licClase||"")}" placeholder="Ej. D, E, CDL-A"></label>
+      <label for="x_licVence">Vence la licencia<input id="x_licVence" type="date" value="${esc(D.licVence||"")}"></label>
+      <label class="full" for="x_ssn">Social Security (SSN)
+        <span class="ssnrow"><input id="x_ssn" type="password" inputmode="numeric" autocomplete="off" value="${esc(fmtSSN(p.ssn||""))}" placeholder="123-45-6789"><button type="button" class="btn small" id="x_ver">Ver</button></span>
+        <span class="hint">Se guarda solo en tu cuenta y se muestra oculto. Solo entra quien tiene tu usuario y contraseña.</span></label>
+      <p class="sub full" id="xerr" style="color:var(--bad);margin:0"></p>
+      <div class="mact full"><button type="submit" class="btn primary" id="x_save">Guardar</button></div>
+    </form>`;
+  } else if(X.tab==="fotos"){
+    body=`<div class="licgrid">${["frente","reverso"].map(k=>`<div class="licbox"><div class="l">${k==="frente"?"Frente":"Reverso"}</div>
+      ${X.lic[k]?`<img src="${X.lic[k]}" alt="Licencia, ${k}">`:`<div class="ph">Sin foto</div>`}
+      <div class="row"><label class="btn small" for="lic_${k}">${X.lic[k]?"Cambiar foto":"Subir foto"}</label><input id="lic_${k}" type="file" accept="image/*" data-lic="${k}" hidden>
+      ${X.lic[k]?`<button class="btn small" type="button" data-licdl="${k}">Descargar</button><button class="btn small danger" type="button" data-licdel="${k}">Quitar</button>`:""}</div></div>`).join("")}</div>
+      <p class="note">En el celular, "Subir foto" te deja tomarla con la cámara. La foto se reduce para que ocupe poco espacio.</p>`;
+  } else if(w&&!X.w9edit){
+    body=`<div class="w9done">
+      <p><span class="chip good">Firmado ${fmtD(w.fecha)}</span></p>
+      <dl class="w9dl"><dt>Nombre</dt><dd>${esc(w.nombre)}</dd>${w.negocio?`<dt>Negocio</dt><dd>${esc(w.negocio)}</dd>`:""}
+      <dt>Clasificación</dt><dd>${esc((W9_CLASS.find(c=>c[0]===w.clase)||["",""])[1])}${w.clase==="llc"?" ("+esc(w.llcCode||"")+")":""}${w.clase==="other"?" · "+esc(w.otro||""):""}</dd>
+      <dt>Dirección</dt><dd>${esc(w.direccion)}<br>${esc(w.ciudad)}</dd>
+      <dt>${w.tinTipo==="ein"?"EIN":"SSN"}</dt><dd>${maskTin(w.tin)}</dd></dl>
+      <img class="sigimg" src="${w.firma}" alt="Firma">
+      <div class="row"><button class="btn primary" type="button" id="w9pdf">Descargar PDF</button><button class="btn" type="button" id="w9redo">Llenar de nuevo</button></div></div>`;
+  } else {
+    const v=w||{};
+    const ssnPre=v.tin||(p.ssn||"");
+    body=`<form id="fw9" class="form" novalidate>
+      <p class="full w9head">Form W-9 (substitute) · Request for Taxpayer Identification Number and Certification<br><span class="sub">Lo llena y firma el driver. Basado en el formulario W-9 del IRS (Rev. March 2024). Solicitante: ${REQUESTER}.</span></p>
+      <label class="full" for="w_nombre">1. Nombre (como aparece en su declaración de impuestos) · Name *<input id="w_nombre" value="${esc(v.nombre||d.nombre||"")}"></label>
+      <label class="full" for="w_negocio">2. Nombre del negocio, si es distinto · Business name (opcional)<input id="w_negocio" value="${esc(v.negocio||"")}"></label>
+      <fieldset class="full"><legend>3a. Clasificación de impuestos · Federal tax classification *</legend>
+        ${W9_CLASS.map(([k,l])=>`<label class="chk"><input type="radio" name="w_clase" value="${k}"${(v.clase||"individual")===k?" checked":""}> ${l}</label>`).join("")}
+        <label for="w_llc">Si es LLC, letra de clasificación (C, S o P)<input id="w_llc" maxlength="1" value="${esc(v.llcCode||"")}"></label>
+        <label for="w_otro">Si es "Other", explique<input id="w_otro" value="${esc(v.otro||"")}"></label>
+        <label class="chk"><input type="checkbox" id="w_3b"${v.foreignPartners?" checked":""}> 3b. Partnership/trust/estate con socios o beneficiarios extranjeros</label>
+      </fieldset>
+      <label for="w_exento">4. Código de beneficiario exento · Exempt payee code (opcional)<input id="w_exento" value="${esc(v.exento||"")}"></label>
+      <label for="w_fatca">Código FATCA · Exemption from FATCA code (opcional)<input id="w_fatca" value="${esc(v.fatca||"")}"></label>
+      <label class="full" for="w_dir">5. Dirección (número, calle, apto.) · Address *<input id="w_dir" value="${esc(v.direccion||"")}"></label>
+      <label class="full" for="w_ciudad">6. Ciudad, estado y código postal · City, state, ZIP *<input id="w_ciudad" value="${esc(v.ciudad||"")}"></label>
+      <fieldset class="full"><legend>Parte I · Número de identificación (TIN) *</legend>
+        <label class="chk"><input type="radio" name="w_tipo" value="ssn"${(v.tinTipo||"ssn")==="ssn"?" checked":""}> Social Security Number (SSN)</label>
+        <label class="chk"><input type="radio" name="w_tipo" value="ein"${v.tinTipo==="ein"?" checked":""}> Employer Identification Number (EIN)</label>
+        <label for="w_tin">Número<input id="w_tin" inputmode="numeric" autocomplete="off" value="${esc((v.tinTipo==="ein"?fmtEIN:fmtSSN)(ssnPre))}" placeholder="123-45-6789"></label>
+      </fieldset>
+      <div class="full cert"><b>Parte II · Certification</b>${W9_CERT.map((t,i)=>`<p${i===2?' id="w_item2"':""}>${esc(t)}</p>`).join("")}<p class="sub">${esc(W9_INSTR)}</p>
+        <label class="chk"><input type="checkbox" id="w_backup"${v.backup?" checked":""}> El IRS me notificó que estoy sujeto a retención de respaldo (se tacha el punto 2)</label></div>
+      <div class="full sigwrap"><span class="lab">Firma del driver · Signature of U.S. person *</span>
+        <canvas id="sigpad" class="sigpad" aria-label="Área para firmar"></canvas>
+        <span class="row"><button type="button" class="btn small" id="sigclear">Borrar firma</button><span class="hint">Firme con el dedo o el mouse.</span></span></div>
+      <label for="w_fecha">Fecha · Date *<input id="w_fecha" type="date" value="${today()}"></label>
+      <p class="sub full" id="w9err" style="color:var(--bad);margin:0"></p>
+      <div class="mact full">${w?`<button type="button" class="btn" id="w9cancel">Cancelar</button>`:""}<button type="submit" class="btn primary" id="w9save">Firmar y guardar W-9</button></div>
+    </form>`;
+  }
+  $("#expRoot").innerHTML=`<div class="ov" id="ovx"><div class="modal wide" role="dialog" aria-label="Expediente de ${esc(d.nombre)}">
+    <div class="xhead"><h2>${esc(d.nombre)}</h2><button class="btn small" type="button" id="xclose">Cerrar</button></div>
+    <div class="xtabs">${tabs.map(([k,l])=>`<button type="button" data-xtab="${k}" aria-selected="${X.tab===k}">${l}</button>`).join("")}</div>
+    ${body}</div></div>`;
+  if($("#sigpad")){sig=sigPad($("#sigpad"));const b=$("#w_backup");const s=()=>$("#w_item2").classList.toggle("struck",b.checked);b.addEventListener("change",s);s()}
+}
+
+function sigPad(cv){
+  const ctx=cv.getContext("2d"), r=window.devicePixelRatio||1, b=cv.getBoundingClientRect();
+  cv.width=Math.max(1,Math.round(b.width*r)); cv.height=Math.max(1,Math.round(b.height*r)); ctx.scale(r,r);
+  ctx.lineWidth=2.4; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle="#0b1a4a";
+  let dn=false, has=false, lx=0, ly=0;
+  const pos=e=>{const q=cv.getBoundingClientRect();return[e.clientX-q.left,e.clientY-q.top]};
+  cv.addEventListener("pointerdown",e=>{dn=true;try{cv.setPointerCapture(e.pointerId)}catch(_){}[lx,ly]=pos(e);ctx.beginPath();ctx.arc(lx,ly,1.1,0,6.3);ctx.fillStyle="#0b1a4a";ctx.fill();has=true});
+  cv.addEventListener("pointermove",e=>{if(!dn)return;const[x,y]=pos(e);ctx.beginPath();ctx.moveTo(lx,ly);ctx.lineTo(x,y);ctx.stroke();lx=x;ly=y;has=true});
+  const up=()=>{dn=false};cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",up);
+  return{has:()=>has,clear:()=>{ctx.clearRect(0,0,cv.width,cv.height);has=false},
+    data:()=>{const W=Math.min(600,cv.width),H=Math.round(cv.height*W/cv.width),c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,W,H);x.drawImage(cv,0,0,W,H);return c.toDataURL("image/png")}};
+}
+
+function compressImg(file){return new Promise((res,rej)=>{const img=new Image(),u=URL.createObjectURL(file);
+  img.onload=()=>{const m=1400,s=Math.min(1,m/Math.max(img.width,img.height)),c=document.createElement("canvas");c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);let q=.78,o=c.toDataURL("image/jpeg",q);while(o.length>650000&&q>.3){q-=.1;o=c.toDataURL("image/jpeg",q)}res(o)};
+  img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("No se pudo leer la imagen"))};img.src=u})}
+
+function saveFile(name,blob){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000)}
+const dataUrlBlob=du=>fetch(du).then(r=>r.blob());
+const slug=s=>String(s||"driver").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"");
+
+function w9Pdf(w){
+  const J=window.jspdf&&window.jspdf.jsPDF; if(!J){toast("No se pudo cargar el generador de PDF. Revisa tu conexión.");return}
+  const doc=new J({unit:"pt",format:"letter"}), M=48, Wd=612-2*M; let y=54;
+  const line=(t,o={})=>{doc.setFont("helvetica",o.b?"bold":"normal");doc.setFontSize(o.s||10);const L=doc.splitTextToSize(String(t),Wd-(o.i||0));if(y+L.length*(o.s||10)*1.25>760){doc.addPage();y=54}doc.text(L,M+(o.i||0),y);if(o.strike){L.forEach((_,k)=>{const yy=y+k*(o.s||10)*1.25-3;doc.line(M+(o.i||0),yy,M+(o.i||0)+doc.getTextWidth(L[k]),yy)})}y+=L.length*(o.s||10)*1.25+(o.after??4)};
+  const field=(lab,val)=>{line(lab,{s:8,after:1});line(val||"—",{s:11,b:true,after:8})};
+  line("Form W-9 (Substitute)",{s:16,b:true,after:2});
+  line("Request for Taxpayer Identification Number and Certification",{s:12,b:true,after:2});
+  line("Based on IRS Form W-9 (Rev. March 2024). Give form to the requester. Do not send to the IRS.",{s:8,after:10});
+  line("Requester: "+REQUESTER,{s:9,after:12});
+  const cl=(W9_CLASS.find(c=>c[0]===w.clase)||["",""])[1].split(" · ")[0];
+  field("1. Name of entity/individual (as shown on your income tax return)",w.nombre);
+  field("2. Business name/disregarded entity name, if different from above",w.negocio);
+  field("3a. Federal tax classification",cl+(w.clase==="llc"?" — tax classification: "+(w.llcCode||""):"")+(w.clase==="other"?" — "+(w.otro||""):""));
+  field("3b. Partnership/trust/estate with foreign partners, owners, or beneficiaries",w.foreignPartners?"Yes (checked)":"No");
+  field("4. Exemptions — Exempt payee code / Exemption from FATCA reporting code",(w.exento||"—")+" / "+(w.fatca||"—"));
+  field("5. Address (number, street, and apt. or suite no.)",w.direccion);
+  field("6. City, state, and ZIP code",w.ciudad);
+  field("Part I — Taxpayer Identification Number ("+(w.tinTipo==="ein"?"Employer identification number":"Social security number")+")",(w.tinTipo==="ein"?fmtEIN:fmtSSN)(w.tin));
+  y+=4; line("Part II — Certification",{s:11,b:true,after:4});
+  W9_CERT.forEach((t,i)=>line(t,{s:9,i:i?10:0,strike:i===2&&w.backup,after:3}));
+  line(W9_INSTR,{s:7.5,after:12});
+  if(y>640){doc.addPage();y=54}
+  line("Signature of U.S. person:",{s:9,after:2});
+  try{doc.addImage(w.firma,"PNG",M,y,220,72)}catch(_){}
+  doc.line(M,y+74,M+260,y+74); y+=90;
+  line("Date: "+fmtD(w.fecha),{s:10,b:true,after:6});
+  line("Signed electronically on "+(w.creado?new Date(w.creado).toLocaleString("en-US"):fmtD(w.fecha))+" in the CMC Logistic Express control panel.",{s:7.5});
+  doc.save("W9_"+slug(w.nombre)+"_"+w.fecha+".pdf");
+}
+
+async function savePriv(e){
+  e.preventDefault();
+  const ssn=digits($("#x_ssn").value);
+  if(ssn&&ssn.length!==9){$("#xerr").textContent="El SSN debe tener 9 dígitos.";return}
+  const lic={licNum:$("#x_licNum").value.trim(),licEstado:$("#x_licEstado").value.trim().toUpperCase(),licClase:$("#x_licClase").value.trim(),licVence:$("#x_licVence").value};
+  $("#x_save").disabled=true;
+  try{
+    if(!db)throw{code:"offline"};
+    await xref("privado",X.id).set({ssn,actualizado:new Date().toISOString()});
+    await xref("drivers",X.id).update(lic);
+    X.priv={ssn};toast("Expediente guardado");renderExp();
+  }catch(err){$("#x_save").disabled=false;$("#xerr").textContent=errMsg(err)}
+}
+
+async function saveW9(e){
+  e.preventDefault();
+  const val=id=>($(id)?.value||"").trim(), rad=n=>(document.querySelector(`input[name="${n}"]:checked`)||{}).value;
+  const w={nombre:val("#w_nombre"),negocio:val("#w_negocio"),clase:rad("w_clase"),llcCode:val("#w_llc").toUpperCase(),otro:val("#w_otro"),foreignPartners:$("#w_3b").checked,
+    exento:val("#w_exento"),fatca:val("#w_fatca"),direccion:val("#w_dir"),ciudad:val("#w_ciudad"),tinTipo:rad("w_tipo"),tin:digits(val("#w_tin")),backup:$("#w_backup").checked,fecha:val("#w_fecha")};
+  const err=m=>{$("#w9err").textContent=m};
+  if(!w.nombre)return err("Falta el nombre (línea 1).");
+  if(w.clase==="llc"&&!/^[CSP]$/.test(w.llcCode))return err("Para LLC escribe la letra de clasificación: C, S o P.");
+  if(!w.direccion||!w.ciudad)return err("Faltan la dirección o la ciudad, estado y código postal.");
+  if(w.tin.length!==9)return err("El número de "+(w.tinTipo==="ein"?"EIN":"SSN")+" debe tener 9 dígitos.");
+  if(!w.fecha)return err("Falta la fecha.");
+  if(!sig||!sig.has())return err("Falta la firma del driver.");
+  w.firma=sig.data(); w.creado=new Date().toISOString(); w.driverId=X.id; w.certificado=true;
+  $("#w9save").disabled=true;
+  try{
+    if(!db)throw{code:"offline"};
+    await xref("w9",X.id).set(w);
+    await xref("drivers",X.id).update({w9:true,w9Fecha:w.fecha});
+    if(w.tinTipo==="ssn"&&!X.priv.ssn){await xref("privado",X.id).set({ssn:w.tin,actualizado:w.creado});X.priv={ssn:w.tin}}
+    X.w9=w;X.w9edit=false;toast("W-9 firmado y guardado");renderExp();
+  }catch(e2){$("#w9save").disabled=false;err(errMsg(e2))}
+}
+
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  if(b.dataset.exp){openExp(b.dataset.exp);return}
+  if(!X)return;
+  if(b.id==="xclose"){closeExp();return}
+  if(b.dataset.xtab){X.tab=b.dataset.xtab;X.w9edit=false;renderExp();return}
+  if(b.id==="x_ver"){const i=$("#x_ssn");i.type=i.type==="password"?"text":"password";b.textContent=i.type==="password"?"Ver":"Ocultar";return}
+  if(b.id==="sigclear"){sig&&sig.clear();return}
+  if(b.id==="w9redo"){X.w9edit=true;renderExp();return}
+  if(b.id==="w9cancel"){X.w9edit=false;renderExp();return}
+  if(b.id==="w9pdf"){w9Pdf(X.w9);return}
+  if(b.dataset.licdl){const k=b.dataset.licdl;saveFile("Licencia_"+slug(drv(X.id)?.nombre)+"_"+k+".jpg",await dataUrlBlob(X.lic[k]));return}
+  if(b.dataset.licdel){const k=b.dataset.licdel;if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="¿Seguro?";setTimeout(()=>{if(b.isConnected){b.dataset.armed="";b.textContent="Quitar"}},4000);return}
+    try{await xref("licencias",X.id+"_"+k).delete();X.lic[k]=null;renderExp();toast("Foto quitada")}catch(err){toast(errMsg(err))}return}
+});
+document.addEventListener("change",async e=>{
+  const i=e.target; if(!X)return;
+  if(i.dataset&&i.dataset.lic&&i.files&&i.files[0]){
+    const k=i.dataset.lic; toast("Subiendo foto…");
+    try{const img=await compressImg(i.files[0]);if(!db)throw{code:"offline"};await xref("licencias",X.id+"_"+k).set({img,driverId:X.id,lado:k,fecha:new Date().toISOString()});X.lic[k]=img;renderExp();toast("Foto guardada")}
+    catch(err){toast(err&&err.message&&!err.code?err.message:errMsg(err))}
+  }
+  if(i.name==="w_tipo"){const t=$("#w_tin");t.value=(i.value==="ein"?fmtEIN:fmtSSN)(t.value);t.placeholder=i.value==="ein"?"12-3456789":"123-45-6789"}
+});
+document.addEventListener("input",e=>{
+  if(!X)return;
+  if(e.target.id==="x_ssn")e.target.value=fmtSSN(e.target.value);
+  if(e.target.id==="w_tin"){const t=(document.querySelector('input[name="w_tipo"]:checked')||{}).value;e.target.value=(t==="ein"?fmtEIN:fmtSSN)(e.target.value)}
+});
+document.addEventListener("submit",e=>{if(e.target.id==="fpriv")savePriv(e);if(e.target.id==="fw9")saveW9(e)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&X)closeExp()});
 
 /* ---------- eventos ---------- */
 let armed=null;
