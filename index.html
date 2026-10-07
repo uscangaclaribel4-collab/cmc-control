@@ -187,7 +187,7 @@ let db=null, dl=null, tab="resumen", periodo="mes", anio1099=String(new Date().g
 let loaded={};
 try{tab=localStorage.getItem("cmc_tab")||tab;periodo=localStorage.getItem("cmc_per")||periodo}catch(e){}
 
-const TABS=[["resumen","Resumen"],["entregas","Entregas"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["socios","Socios"],["1099","1099 / Impuestos"]];
+const TABS=[["resumen","Resumen"],["entregas","Entregas"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["socios","Socios"],["1099","1099 / Impuestos"],["usuarios","Usuarios"]];
 const SOCIOS=["Claribel Alfonso","Felipe Alfonso","Daianna Velasquez"];
 const METODOS=["Zelle","Transferencia","Cheque","Efectivo","Cash App","Otro"];
 const CATS=["Combustible","Seguro","Mantenimiento vehículo","Software / apps","Permisos y licencias","Renta / bodega","Teléfono","Oficina","Contador / legal","Publicidad","Otro"];
@@ -247,7 +247,7 @@ function render(){
   const v=$("#view");
   if(!db)return;
   if(!COLS.every(c=>loaded[c])){v.innerHTML=`<div class="empty"><strong>Cargando</strong>Leyendo tus registros…</div>`;return}
-  ({resumen:vResumen,entregas:vEntregas,drivers:vDrivers,pagos:vPagos,gastos:vGastos,socios:vSocios,"1099":v1099}[tab]||vResumen)(v);
+  ({resumen:vResumen,entregas:vEntregas,drivers:vDrivers,pagos:vPagos,gastos:vGastos,socios:vSocios,"1099":v1099,usuarios:vUsuarios}[tab]||vResumen)(v);
 }
 
 function vResumen(v){
@@ -455,7 +455,7 @@ async function saveForm(e){
   if(col==="entregas"&&out.entregados+out.perdidos>out.paquetes){$("#ferr").textContent="Entregados + perdidos no puede ser mayor que paquetes asignados.";return}
   const prev=id?S[col].find(x=>x.id===id):null;
   if(prev?.ejemplo)out.ejemplo=true;
-  out.actualizado=new Date().toISOString(); out.creado=(prev&&prev.creado)||out.actualizado;
+  out.actualizado=new Date().toISOString(); out.creado=(prev&&prev.creado)||out.actualizado; out.por=window.__email||"";
   $("#fsave").disabled=true;
   try{await put(col,id,out);closeForm();toast(id?"Cambios guardados":"Guardado")}
   catch(err){$("#fsave").disabled=false;$("#ferr").textContent=errMsg(err)}
@@ -727,6 +727,77 @@ document.addEventListener("input",e=>{
 document.addEventListener("submit",e=>{if(e.target.id==="fpriv")savePriv(e);if(e.target.id==="fw9")saveW9(e)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&X)closeExp()});
 
+/* ---------- usuarios y registro de accesos ---------- */
+const ADMIN="contact@cmclogistic.com";
+const REGION="Louisiana";
+let CFG={usuarios:[]}, ACC=[], uSubs=[];
+const isAdmin=()=>(window.__email||"")===ADMIN;
+function startUsers(){
+  stopUsers();
+  uSubs.push(db.collection("config").doc("usuarios").onSnapshot(s=>{CFG=(s.exists&&s.data())||{};if(!Array.isArray(CFG.usuarios))CFG.usuarios=[];if(tab==="usuarios"&&!editing)render()},()=>{}));
+  uSubs.push(db.collection("accesos").orderBy("fecha","desc").limit(300).onSnapshot(s=>{ACC=s.docs.map(d=>d.data());if(tab==="usuarios"&&!editing)render()},()=>{}));
+}
+function stopUsers(){uSubs.forEach(u=>u());uSubs=[]}
+async function logAcceso(email){
+  try{const k="cmc_acc_"+REGION+"_"+email;if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,"1")}catch(_){}
+  try{await db.collection("accesos").doc().set({email,fecha:new Date().toISOString(),region:REGION,navegador:String(navigator.userAgent||"").slice(0,200)})}catch(_){}
+}
+const fmtDT=s=>{if(!s)return"";const d=new Date(s);return d.toLocaleDateString("en-US")+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})};
+const nombreDe=e=>{e=(e||"").toLowerCase();if(e===ADMIN)return"Administrador";const u=CFG.usuarios.find(x=>x.email===e);return u?u.nombre:e};
+const dispo=ua=>{ua=ua||"";const os=/iPhone|iPad/.test(ua)?"iPhone/iPad":/Android/.test(ua)?"Android":/Windows/.test(ua)?"Windows":/Mac/.test(ua)?"Mac":"Otro";const br=/Edg\//.test(ua)?"Edge":/Chrome\//.test(ua)?"Chrome":/Safari\//.test(ua)?"Safari":/Firefox/.test(ua)?"Firefox":"";return os+(br?" · "+br:"")};
+
+function vUsuarios(v){
+  const adm=isAdmin(), U=[{nombre:"Administrador (cuenta principal)",email:ADMIN,admin:true}].concat(CFG.usuarios);
+  const ultimo=e=>{const a=ACC.find(x=>(x.email||"").toLowerCase()===e);return a?fmtDT(a.fecha)+" · "+esc(a.region||""):"Nunca"};
+  v.innerHTML=`<div class="bar"><div class="left"><h2>Usuarios y accesos</h2><span class="sub">Entraste como ${esc(window.__email||"")}</span></div>${adm?`<button class="btn primary" type="button" id="uNew">+ Agregar usuario</button>`:""}</div>
+  ${adm?`<form id="fuser" class="panel form" hidden novalidate style="margin-bottom:16px">
+    <label for="u_nombre">Nombre<input id="u_nombre" list="u_socios" placeholder="Ej. Felipe Alfonso" autocomplete="off"></label>
+    <datalist id="u_socios">${SOCIOS.map(s=>`<option value="${esc(s)}">`).join("")}</datalist>
+    <label for="u_email">Correo<input id="u_email" type="email" autocomplete="off" placeholder="nombre@correo.com"></label>
+    <p class="sub full" style="margin:0">Le llegará un correo para que cree su propia contraseña. Tú no la ves ni la escribes. Puede tardar unos minutos; que revise también la carpeta de spam.</p>
+    <p class="sub full" id="uerr" style="color:var(--bad);margin:0"></p>
+    <div class="mact full"><button type="button" class="btn" id="uCancel">Cancelar</button><button type="submit" class="btn primary" id="uSave">Crear usuario y enviar correo</button></div></form>`:""}
+  <div class="tw" style="margin-bottom:22px"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Último acceso</th><th></th></tr></thead><tbody>
+  ${U.map(u=>`<tr><td><b>${esc(u.nombre||"")}</b>${u.admin?' <span class="chip">Admin</span>':""}</td><td>${esc(u.email)}</td><td class="d">${ultimo(u.email)}</td><td class="act">${adm&&!u.admin?`<button class="btn small" type="button" data-ureset="${esc(u.email)}">Reenviar correo</button><button class="btn small danger" type="button" data-udel="${esc(u.email)}">Quitar acceso</button>`:""}</td></tr>`).join("")}
+  </tbody></table></div>
+  <h3>Registro de accesos</h3>
+  ${ACC.length?`<div class="tw"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Panel</th><th>Dispositivo</th></tr></thead><tbody>${ACC.map(a=>`<tr><td class="d">${fmtDT(a.fecha)}</td><td>${esc(nombreDe(a.email))}<div class="sub">${esc(a.email||"")}</div></td><td>${esc(a.region||"")}</td><td class="sub">${esc(dispo(a.navegador))}</td></tr>`).join("")}</tbody></table></div>`
+  :`<div class="empty"><strong>Sin accesos registrados</strong>Cada vez que alguien entre al panel aparecerá aquí con la fecha y la hora.</div>`}
+  <p class="note">Se muestran los últimos 300 accesos de los dos paneles (Louisiana y Houston). ${adm?"Solo la cuenta principal puede agregar o quitar usuarios.":""}</p>`;
+}
+
+const rndPwd=()=>{const a=new Uint8Array(18);crypto.getRandomValues(a);return btoa(String.fromCharCode(...a))+"!9a"};
+const AUTHERR={"auth/invalid-email":"Ese correo no es válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos.","auth/operation-not-allowed":"El acceso con correo y contraseña no está activado en Firebase.","auth/network-request-failed":"Sin conexión a internet."};
+async function invitar(email){
+  const sec=firebase.initializeApp(window.FIREBASE_CONFIG,"inv"+Date.now()), au=sec.auth();
+  try{
+    try{await au.createUserWithEmailAndPassword(email,rndPwd())}catch(e){if(e.code!=="auth/email-already-in-use")throw e}
+    au.languageCode="es"; await au.sendPasswordResetEmail(email);
+  }finally{try{await au.signOut()}catch(_){}try{await sec.delete()}catch(_){}}
+}
+async function guardarUsuarios(list){
+  await db.collection("config").doc("usuarios").set({usuarios:list,emails:list.map(u=>u.email),actualizado:new Date().toISOString(),por:window.__email||""});
+}
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("button"); if(!b||tab!=="usuarios")return;
+  if(b.id==="uNew"){const f=$("#fuser");f.hidden=!f.hidden;if(!f.hidden)$("#u_nombre").focus();return}
+  if(b.id==="uCancel"){$("#fuser").hidden=true;return}
+  if(b.dataset.ureset){const em=b.dataset.ureset;b.disabled=true;try{const a=firebase.auth();a.languageCode="es";await a.sendPasswordResetEmail(em);toast("Correo enviado a "+em)}catch(err){toast(AUTHERR[err.code]||"No se pudo enviar el correo.")}b.disabled=false;return}
+  if(b.dataset.udel){const em=b.dataset.udel;if(b.dataset.armed!=="1"){b.dataset.armed="1";b.textContent="¿Confirmar?";b.classList.add("armed");setTimeout(()=>{if(b.isConnected){b.dataset.armed="";b.textContent="Quitar acceso";b.classList.remove("armed")}},4000);return}
+    b.disabled=true;try{await guardarUsuarios(CFG.usuarios.filter(u=>u.email!==em));toast("Acceso quitado a "+em)}catch(err){b.disabled=false;toast(errMsg(err))}return}
+});
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="fuser")return; e.preventDefault();
+  const nombre=$("#u_nombre").value.trim(), email=$("#u_email").value.trim().toLowerCase(), er=m=>{$("#uerr").textContent=m};
+  if(!nombre)return er("Escribe el nombre.");
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return er("Escribe un correo válido.");
+  if(email===ADMIN||CFG.usuarios.some(u=>u.email===email))return er("Ese correo ya tiene acceso.");
+  $("#uSave").disabled=true; er("");
+  try{await invitar(email);await guardarUsuarios(CFG.usuarios.concat([{nombre,email,agregado:new Date().toISOString()}]));toast("Usuario creado. Le enviamos el correo a "+email);$("#fuser").reset();$("#fuser").hidden=true}
+  catch(err){er(AUTHERR[err.code]||errMsg(err))}
+  $("#uSave").disabled=false;
+});
+
 /* ---------- eventos ---------- */
 let armed=null;
 document.addEventListener("click",e=>{
@@ -766,7 +837,7 @@ function startData(){
     },err=>{$("#sync").textContent=err?.code==="permission-denied"?"Este usuario no tiene acceso":"Conexión perdida · recarga la página";loaded[c]=true;render()}));
   });
 }
-function stopData(){unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
+function stopData(){stopUsers();unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
 const LERR={"auth/invalid-credential":"Usuario o contraseña incorrectos.","auth/wrong-password":"Usuario o contraseña incorrectos.","auth/user-not-found":"Usuario o contraseña incorrectos.","auth/invalid-email":"Escribe un correo válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos y vuelve a intentar.","auth/network-request-failed":"Sin conexión a internet."};
 if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
   $("#lerr").textContent="Falta configurar Firebase (firebase-config.js).";$("#lbtn").disabled=true;
@@ -774,7 +845,7 @@ if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
   firebase.initializeApp(window.FIREBASE_CONFIG);
   const auth=firebase.auth();
   auth.onAuthStateChanged(u=>{
-    if(u){$("#login").hidden=true;$("#logout").hidden=false;$("#sync").textContent=u.email;startData();render()}
+    if(u){window.__email=(u.email||"").toLowerCase();$("#login").hidden=true;$("#logout").hidden=false;$("#sync").textContent=u.email;startData();startUsers();logAcceso(window.__email);render()}
     else{stopData();$("#login").hidden=false;$("#logout").hidden=true;$("#view").innerHTML="";$("#lemail").focus()}
   });
   $("#lform").addEventListener("submit",async e=>{
