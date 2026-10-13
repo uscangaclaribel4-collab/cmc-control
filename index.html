@@ -784,10 +784,19 @@ function startUsers(){
   uSubs.push(db.collection("accesos").orderBy("fecha","desc").limit(300).onSnapshot(s=>{ACC=s.docs.map(d=>d.data());if(tab==="usuarios"&&!editing)render()},()=>{}));
 }
 function stopUsers(){uSubs.forEach(u=>u());uSubs=[]}
-async function logAcceso(email){
-  try{const k="cmc_acc_"+REGION+"_"+email;if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,"1")}catch(_){}
-  try{await db.collection("accesos").doc().set({email,fecha:new Date().toISOString(),region:REGION,navegador:String(navigator.userAgent||"").slice(0,200)})}catch(_){}
+async function logAcceso(email,forzar,tipo){
+  const k="cmc_acc_"+REGION+"_"+email;
+  try{const t=+sessionStorage.getItem(k)||0;if(!forzar&&Date.now()-t<30*60*1000)return}catch(_){}
+  const reg={email,fecha:new Date().toISOString(),region:REGION,tipo:tipo||"Abrió el panel",navegador:String(navigator.userAgent||"").slice(0,200)};
+  let err;
+  for(let i=0;i<3;i++){
+    try{if(!db)return;await db.collection("accesos").doc().set(reg);try{sessionStorage.setItem(k,String(Date.now()))}catch(_){}return}
+    catch(e){err=e;if(e&&e.code==="permission-denied")break;await new Promise(r=>setTimeout(r,1500*(i+1)))}
+  }
+  console.error("No se pudo registrar el acceso",err);
+  toast(err&&err.code==="permission-denied"?"Aviso: Firebase no dejó registrar tu entrada (permiso denegado). Avísale a la administradora.":"Aviso: no se pudo registrar tu entrada. Se intentará de nuevo.");
 }
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&window.__email&&db)logAcceso(window.__email)});
 const fmtDT=s=>{if(!s)return"";const d=new Date(s);return d.toLocaleDateString("en-US")+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})};
 const nombreDe=e=>{e=(e||"").toLowerCase();if(e===ADMIN)return"Administrador";const u=CFG.usuarios.find(x=>x.email===e);return u?u.nombre:e};
 const dispo=ua=>{ua=ua||"";const os=/iPhone|iPad/.test(ua)?"iPhone/iPad":/Android/.test(ua)?"Android":/Windows/.test(ua)?"Windows":/Mac/.test(ua)?"Mac":"Otro";const br=/Edg\//.test(ua)?"Edge":/Chrome\//.test(ua)?"Chrome":/Safari\//.test(ua)?"Safari":/Firefox/.test(ua)?"Firefox":"";return os+(br?" · "+br:"")};
@@ -807,7 +816,7 @@ function vUsuarios(v){
   ${U.map(u=>`<tr><td><b>${esc(u.nombre||"")}</b>${u.admin?' <span class="chip">Admin</span>':""}</td><td>${esc(u.email)}</td><td class="d">${ultimo(u.email)}</td><td class="act">${adm&&!u.admin?`<button class="btn small" type="button" data-ureset="${esc(u.email)}">Reenviar correo</button><button class="btn small danger" type="button" data-udel="${esc(u.email)}">Quitar acceso</button>`:""}</td></tr>`).join("")}
   </tbody></table></div>
   <h3>Registro de accesos</h3>
-  ${ACC.length?`<div class="tw"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Panel</th><th>Dispositivo</th></tr></thead><tbody>${ACC.map(a=>`<tr><td class="d">${fmtDT(a.fecha)}</td><td>${esc(nombreDe(a.email))}<div class="sub">${esc(a.email||"")}</div></td><td>${esc(a.region||"")}</td><td class="sub">${esc(dispo(a.navegador))}</td></tr>`).join("")}</tbody></table></div>`
+  ${ACC.length?`<div class="tw"><table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Panel</th><th>Dispositivo</th></tr></thead><tbody>${ACC.map(a=>`<tr><td class="d">${fmtDT(a.fecha)}</td><td>${esc(nombreDe(a.email))}<div class="sub">${esc(a.email||"")}</div></td><td>${esc(a.region||"")}<div class="sub">${esc(a.tipo||"")}</div></td><td class="sub">${esc(dispo(a.navegador))}</td></tr>`).join("")}</tbody></table></div>`
   :`<div class="empty"><strong>Sin accesos registrados</strong>Cada vez que alguien entre al panel aparecerá aquí con la fecha y la hora.</div>`}
   <p class="note">Se muestran los últimos 300 accesos de los dos paneles (Louisiana y Houston). ${adm?"Solo la cuenta principal puede agregar o quitar usuarios.":""}</p>`;
 }
@@ -1088,14 +1097,14 @@ if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
   firebase.initializeApp(window.FIREBASE_CONFIG);
   const auth=firebase.auth();
   auth.onAuthStateChanged(u=>{
-    if(u){window.__email=(u.email||"").toLowerCase();$("#login").hidden=true;$("#logout").hidden=false;$("#pwBtn").hidden=false;$("#sync").textContent=u.email;startData();startUsers();logAcceso(window.__email);render()}
+    if(u){window.__email=(u.email||"").toLowerCase();$("#login").hidden=true;$("#logout").hidden=false;$("#pwBtn").hidden=false;$("#sync").textContent=u.email;startData();startUsers();const nuevo=window.__login===true;window.__login=false;logAcceso(window.__email,nuevo,nuevo?"Inició sesión":"Abrió el panel");render()}
     else{stopData();$("#login").hidden=false;$("#logout").hidden=true;$("#pwBtn").hidden=true;$("#pwRoot").innerHTML="";$("#view").innerHTML="";$("#lemail").focus()}
   });
   $("#lform").addEventListener("submit",async e=>{
     e.preventDefault();e.stopPropagation();
     $("#lerr").textContent="";$("#lbtn").disabled=true;
-    try{await auth.signInWithEmailAndPassword($("#lemail").value.trim(),$("#lpass").value);$("#lpass").value=""}
-    catch(err){$("#lerr").textContent=LERR[err.code]||"No se pudo entrar. Inténtalo de nuevo."}
+    window.__login=true;try{await auth.signInWithEmailAndPassword($("#lemail").value.trim(),$("#lpass").value);$("#lpass").value=""}
+    catch(err){window.__login=false;$("#lerr").textContent=LERR[err.code]||"No se pudo entrar. Inténtalo de nuevo."}
     $("#lbtn").disabled=false;
   });
   $("#logout").addEventListener("click",e=>{e.stopPropagation();auth.signOut()});
