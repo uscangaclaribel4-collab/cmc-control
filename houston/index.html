@@ -457,7 +457,7 @@ let editing=null, pagoTouched=false;
 function openForm(col,id,preset){
   const sch=F[col], doc=id?S[col].find(x=>x.id===id):null;
   if(col!=="drivers"&&!S.drivers.length&&(col==="entregas"||col==="pagos")){toast("Primero agrega un driver.");tab="drivers";render();return}
-  editing={col,id}; pagoTouched=!!doc;
+  editing={col,id}; pagoTouched=!!doc&&Math.abs((+doc.pagoDriver||0)-(calcPago(doc.driverId,doc.entregados,doc.dobles)??-1))>0.004;
   const val=(k,o)=>{if(doc)return doc[k];if(preset&&k in preset)return preset[k];const d=o?.def;return typeof d==="function"?d():d};
   const fields=sch.f.map(([k,l,type,o={}])=>{
     const v=val(k,o), cls=o.full?' class="full"':"", fid="f_"+k, rq=o.req?" required":"";
@@ -497,7 +497,7 @@ async function saveForm(e){
   if(prev?.ejemplo)out.ejemplo=true;
   out.actualizado=new Date().toISOString(); out.creado=(prev&&prev.creado)||out.actualizado; out.por=window.__email||"";
   $("#fsave").disabled=true;
-  try{await put(col,id,out);closeForm();toast(id?"Cambios guardados":"Guardado")}
+  try{await put(col,id,out);closeForm();toast(id?"Cambios guardados":"Guardado");if(col==="drivers"&&prev&&(prev.pagoTipo!==out.pagoTipo||(+prev.tarifa||0)!==(+out.tarifa||0)||(+prev.tarifaDoble||0)!==(+out.tarifaDoble||0)))ofrecerRecalculo(id,out)}
   catch(err){$("#fsave").disabled=false;$("#ferr").textContent=errMsg(err)}
 }
 function errMsg(err){
@@ -952,6 +952,50 @@ document.addEventListener("click",async e=>{
     return}
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#delRoot").innerHTML)$("#delRoot").innerHTML=""});
+
+/* ---------- recalcular pagos cuando cambia la tarifa ---------- */
+function pagoCon(d,entregados,dobles){
+  const t=+d.tarifa||0, en=+entregados||0, db=Math.min(Math.max(+dobles||0,0),en), td=(+d.tarifaDoble)||t*2;
+  if(d.pagoTipo==="paquete")return Math.round((t*(en-db)+td*db)*100)/100;
+  if(d.pagoTipo==="ruta")return Math.round((t+((+d.tarifaDoble)||0)*db)*100)/100;
+  return null;
+}
+let RC=null;
+function ofrecerRecalculo(id,d){
+  if(!db||pagoCon(d,1,0)===null)return;
+  const E=S.entregas.filter(e=>e.driverId===id); if(!E.length)return;
+  const desde=E.map(e=>e.fecha||"").filter(Boolean).sort()[0]||today();
+  RC={id,d};
+  $("#delRoot").innerHTML=`<div class="ov"><form class="modal" id="frc" novalidate><h2>¿Recalcular pagos?</h2>
+  <p style="margin:0 0 10px">Cambiaste la tarifa de <b>${esc(d.nombre||"")}</b>. Sus rutas ya guardadas todavía tienen el pago calculado con la tarifa anterior.</p>
+  <div class="form"><label class="full" for="rc_desde">Recalcular las rutas desde<input id="rc_desde" type="date" value="${esc(desde)}"></label></div>
+  <p class="sub" id="rc_prev" style="margin:10px 0 0"></p>
+  <p class="sub" id="rcerr" style="color:var(--bad)"></p>
+  <div class="mact"><button type="button" class="btn" id="rcNo">No, dejarlas como están</button><button type="submit" class="btn primary" id="rcOk">Recalcular</button></div></form></div>`;
+  rcPreview();
+}
+function rcCambios(){
+  const desde=($("#rc_desde")||{}).value||"";
+  return S.entregas.filter(e=>e.driverId===RC.id&&(e.fecha||"")>=desde).map(e=>({e,nuevo:pagoCon(RC.d,e.entregados,e.dobles)})).filter(x=>x.nuevo!==null&&Math.abs((+x.e.pagoDriver||0)-x.nuevo)>0.004);
+}
+function rcPreview(){
+  if(!RC||!$("#rc_prev"))return;
+  const C=rcCambios(), antes=C.reduce((s,x)=>s+(+x.e.pagoDriver||0),0), despues=C.reduce((s,x)=>s+x.nuevo,0);
+  $("#rc_prev").innerHTML=C.length?`Cambiarán <b>${C.length}</b> ruta${C.length>1?"s":""}: el pago al driver pasa de <b>${money(antes)}</b> a <b>${money(despues)}</b>.`:"Ninguna ruta cambia en esas fechas.";
+  $("#rcOk").disabled=!C.length;
+}
+document.addEventListener("input",e=>{if(e.target.id==="rc_desde")rcPreview()});
+document.addEventListener("click",e=>{const b=e.target.closest("button");if(b&&b.id==="rcNo"){$("#delRoot").innerHTML="";RC=null}});
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="frc")return; e.preventDefault();
+  const C=rcCambios(), ok=$("#rcOk"); if(!C.length)return;
+  ok.disabled=true; ok.textContent="Recalculando…";
+  try{
+    const now=new Date().toISOString(), por=window.__email||"";
+    for(let i=0;i<C.length;i+=450){const b=db.batch();C.slice(i,i+450).forEach(x=>b.update(xref("entregas",x.e.id),{pagoDriver:x.nuevo,actualizado:now,por}));await b.commit()}
+    $("#delRoot").innerHTML="";RC=null;toast(`Pago recalculado en ${C.length} ruta${C.length>1?"s":""}`);
+  }catch(err){ok.disabled=false;ok.textContent="Recalcular";$("#rcerr").textContent=errMsg(err)}
+});
 
 /* ---------- eventos ---------- */
 let armed=null;
