@@ -155,6 +155,7 @@ body{margin:0;font-size:15px}
 <div id="modalRoot"></div>
 <div id="expRoot"></div>
 <div id="pwRoot"></div>
+<div id="delRoot"></div>
 <div class="login" id="login">
   <form class="lbox" id="lform" novalidate>
     <div class="logo"><img src="../logo.webp" alt="CMC Logistic Express"></div>
@@ -315,6 +316,7 @@ function vDrivers(v){
   const sal=saldos();
   const L=[...S.drivers].sort((a,b)=>(b.activo!==false)-(a.activo!==false)||a.nombre.localeCompare(b.nombre));
   v.innerHTML=`<div class="bar"><div class="left"><h2>Drivers independientes</h2><span class="sub">${S.drivers.filter(d=>d.activo!==false).length} activos</span></div><div class="left"><button class="btn" data-csv="drivers">Exportar CSV</button><button class="btn primary" data-new="drivers">+ Agregar driver</button></div></div>
+  ${huerfanosHtml()}
   ${L.length?`<div class="tw"><table><thead><tr><th>Nombre</th><th>Contacto</th><th>Vehículo</th><th>Forma de pago</th><th>Documentos</th><th class="n">Perdidos</th><th class="n">Le debes</th><th></th></tr></thead><tbody>
   ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")+(d.pagoTipo==="paquete"?" · doble "+money((+d.tarifaDoble)||(+d.tarifa||0)*2):(+d.tarifaDoble?" · doble +"+money(d.tarifaDoble):""))}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}${d.licVence?` <span class="chip ${d.licVence<today()?"bad":"good"}">Licencia ${fmtD(d.licVence)}</span>`:""}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id).replace('<td class="act">','<td class="act"><button class="btn small" data-exp="'+d.id+'">Expediente</button>')}</tr>`}).join("")}
   </tbody></table></div><p class="note">Como contratistas 1099, cada driver debe firmar su W-9 antes del primer pago. Usa el botón Expediente para guardar su licencia, SSN, fotos de la licencia y firmar el W-9.</p>`
@@ -500,6 +502,8 @@ async function saveForm(e){
 }
 function errMsg(err){
   const c=err?.code;
+  if(c==="borrado")return"Este registro ya fue eliminado. No se volvió a guardar.";
+  if(c==="no-borrado")return"No se pudo confirmar que se borró por completo. Revisa tu conexión e inténtalo otra vez.";
   if(c==="permission-denied")return"Este usuario no tiene permiso para guardar.";
   if(c==="invalid_argument")return"No tienes permiso para guardar en esta página, o un dato no es válido.";
   if(c==="quota_exceeded")return"Se llenó el espacio de almacenamiento. Borra registros viejos o exporta y limpia.";
@@ -510,11 +514,14 @@ function errMsg(err){
 async function put(col,id,data){
   if(!db){const nid=id||("l"+Date.now());const i=S[col].findIndex(x=>x.id===nid);const row={...data,id:nid};i>=0?S[col][i]=row:S[col].push(row);render();return}
   const ref=id?db.collection("hou_"+col).doc(id):db.collection("hou_"+col).doc();
+  if(id){const s=await ref.get();if(!s.exists)throw{code:"borrado"}}
   try{await ref.set(data)}catch(e){if(e?.code==="unavailable"){await new Promise(r=>setTimeout(r,600+Math.random()*600));await ref.set(data)}else throw e}
 }
 async function del(col,id){
   if(!db){S[col]=S[col].filter(x=>x.id!==id);render();return}
-  await db.collection("hou_"+col).doc(id).delete();
+  const ref=db.collection("hou_"+col).doc(id);
+  await ref.delete();
+  await confirmarBorrado([ref]);
 }
 
 /* ---------- CSV ---------- */
@@ -875,6 +882,77 @@ document.addEventListener("click",async e=>{
 document.addEventListener("submit",e=>{if(e.target.id==="fpw")savePw(e)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#pwRoot").innerHTML)$("#pwRoot").innerHTML=""});
 
+/* ---------- borrado completo (sin restos) ---------- */
+let ORF=null, orfBusy=false;
+async function confirmarBorrado(refs){
+  const chk=async r=>{let s;try{s=await r.get({source:"server"})}catch(e){throw{code:"no-borrado"}}if(s.exists)throw{code:"no-borrado"}};
+  for(let i=0;i<refs.length;i+=25)await Promise.all(refs.slice(i,i+25).map(chk));
+}
+async function borrarTodo(refs){
+  for(let i=0;i<refs.length;i+=450){const b=db.batch();refs.slice(i,i+450).forEach(r=>b.delete(r));await b.commit()}
+  await confirmarBorrado(refs);
+}
+function refsDriver(id,hist){
+  const R=[xref("drivers",id),xref("privado",id),xref("w9",id),xref("licencias",id+"_frente"),xref("licencias",id+"_reverso")];
+  if(hist){S.entregas.filter(e=>e.driverId===id).forEach(e=>R.push(xref("entregas",e.id)));S.pagos.filter(p=>p.driverId===id).forEach(p=>R.push(xref("pagos",p.id)))}
+  return R;
+}
+const plural=(n,a,b)=>n+" "+(n===1?a:b);
+function pedirBorrarDriver(id){
+  const d=drv(id); if(!d)return;
+  if(!db){del("drivers",id);return}
+  const nE=S.entregas.filter(e=>e.driverId===id).length, nP=S.pagos.filter(p=>p.driverId===id).length;
+  $("#delRoot").innerHTML=`<div class="ov"><form class="modal" id="fdeld" data-id="${esc(id)}" novalidate><h2>Eliminar driver</h2>
+  <p style="margin:0 0 8px">Se borrará <b>por completo</b> a <b>${esc(d.nombre)}</b>, sin dejar nada guardado:</p>
+  <ul class="sub" style="margin:0 0 12px;padding-left:20px"><li>Su ficha (contacto, vehículo, tarifa)</li><li>Su Social (SSN) y los datos de su licencia</li><li>Las fotos de su licencia</li><li>Su formulario W-9 firmado</li></ul>
+  ${nE||nP?`<label class="chk" for="dd_hist"><input type="checkbox" id="dd_hist" checked> También borrar ${[nE?plural(nE,"ruta","rutas"):"",nP?plural(nP,"pago","pagos"):""].filter(Boolean).join(" y ")} de este driver</label>
+  <p class="sub" style="margin:6px 0 0">Si los borras, ya no contarán en el Resumen, los reportes ni el 1099. Si los necesitas para impuestos, exporta el CSV antes o quita esta casilla.</p>`:""}
+  <p class="sub" id="dderr" style="color:var(--bad)"></p>
+  <div class="mact"><button type="button" class="btn" id="ddCancel">Cancelar</button><button type="submit" class="btn danger" id="ddOk">Eliminar por completo</button></div></form></div>`;
+  $("#ddCancel").focus();
+}
+async function buscarHuerfanos(){
+  if(!db||orfBusy)return; orfBusy=true;
+  try{
+    const [dr,pv,w9,li]=await Promise.all(["drivers","privado","w9","licencias"].map(c=>db.collection(PFX+c).get({source:"server"})));
+    const ids=new Set(dr.docs.map(d=>d.id)), exp=[], gone=new Set();
+    pv.docs.forEach(d=>{if(!ids.has(d.id)){exp.push(xref("privado",d.id));gone.add(d.id)}});
+    w9.docs.forEach(d=>{if(!ids.has(d.id)){exp.push(xref("w9",d.id));gone.add(d.id)}});
+    li.docs.forEach(d=>{const did=(d.data()||{}).driverId||d.id.replace(/_(frente|reverso)$/,"");if(!ids.has(did)){exp.push(xref("licencias",d.id));gone.add(did)}});
+    const E=S.entregas.filter(e=>e.driverId&&!ids.has(e.driverId)), P=S.pagos.filter(p=>p.driverId&&!ids.has(p.driverId));
+    ORF={exp,nX:gone.size,hist:E.map(e=>xref("entregas",e.id)).concat(P.map(p=>xref("pagos",p.id))),nE:E.length,nP:P.length};
+  }catch(e){ORF={err:1,exp:[],hist:[]}}
+  orfBusy=false; if(tab==="drivers"&&!editing)render();
+}
+function huerfanosHtml(){
+  if(!db)return"";
+  if(ORF===null&&!orfBusy&&loaded.drivers&&loaded.entregas&&loaded.pagos)setTimeout(buscarHuerfanos,0);
+  if(!ORF||ORF.err||(!ORF.exp.length&&!ORF.hist.length))return"";
+  const partes=[ORF.nX?`el expediente (SSN, W-9 o fotos de licencia) de ${plural(ORF.nX,"driver","drivers")}`:"",ORF.nE?plural(ORF.nE,"ruta","rutas"):"",ORF.nP?plural(ORF.nP,"pago","pagos"):""].filter(Boolean);
+  return `<div class="panel" style="border-color:var(--warn);border-left:4px solid var(--warn);margin-bottom:16px"><b>Quedaron datos de drivers que ya eliminaste</b>
+  <p class="sub" style="margin:6px 0 10px">Todavía están guardados: ${partes.join(" · ")}.</p>
+  ${ORF.exp.length?`<button class="btn danger" type="button" id="orfExp">Borrar expedientes</button> `:""}${ORF.hist.length?`<button class="btn danger" type="button" id="orfAll">Borrar todo (también rutas y pagos)</button>`:""}</div>`;
+}
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="fdeld")return; e.preventDefault();
+  const id=e.target.dataset.id, hist=!!($("#dd_hist")&&$("#dd_hist").checked), ok=$("#ddOk");
+  ok.disabled=true; ok.textContent="Borrando…"; $("#dderr").textContent="";
+  try{await borrarTodo(refsDriver(id,hist));$("#delRoot").innerHTML="";if(X&&X.id===id)closeExp();ORF=null;toast("Driver eliminado por completo");render()}
+  catch(err){ok.disabled=false;ok.textContent="Eliminar por completo";$("#dderr").textContent=errMsg(err)}
+});
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  if(b.id==="ddCancel"){$("#delRoot").innerHTML="";return}
+  if(b.id==="orfExp"||b.id==="orfAll"){
+    if(b.dataset.ok!=="1"){b.dataset.ok="1";b.textContent="¿Seguro? Toca otra vez";setTimeout(()=>{if(b.isConnected&&!b.disabled&&!editing)render()},4000);return}
+    if(!ORF)return; b.disabled=true; b.textContent="Borrando…";
+    const refs=b.id==="orfAll"?ORF.exp.concat(ORF.hist):ORF.exp;
+    try{await borrarTodo(refs);ORF=null;toast("Borrado por completo");render()}
+    catch(err){b.disabled=false;toast(errMsg(err))}
+    return}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#delRoot").innerHTML)$("#delRoot").innerHTML=""});
+
 /* ---------- eventos ---------- */
 let armed=null;
 document.addEventListener("click",e=>{
@@ -883,6 +961,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.new){openForm(b.dataset.new);return}
   if(b.dataset.edit){openForm(b.dataset.edit,b.dataset.id);return}
   if(b.dataset.csv){exportCsv(b.dataset.csv);return}
+  if(b.dataset.del==="drivers"){pedirBorrarDriver(b.dataset.id);return}
   if(b.dataset.del){
     const key=b.dataset.del+"/"+b.dataset.id;
     if(armed!==key){armed=key;document.querySelectorAll(".armed").forEach(x=>{x.classList.remove("armed");x.textContent="Eliminar"});b.classList.add("armed");b.textContent="¿Confirmar?";setTimeout(()=>{if(armed===key){armed=null;b.classList.remove("armed");b.textContent="Eliminar"}},4000);return}
@@ -910,11 +989,11 @@ function startData(){
   COLS.forEach(c=>{
     unsubs.push(db.collection("hou_"+c).onSnapshot(snap=>{
       S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));loaded[c]=true;
-      if(!editing)render();else{renderBanners()}
+      if(!editing)render();else if(editing.col===c&&editing.id&&!S[c].some(x=>x.id===editing.id)){closeForm();toast("Ese registro fue eliminado")}else{renderBanners()}
     },err=>{$("#sync").textContent=err?.code==="permission-denied"?"Este usuario no tiene acceso":"Conexión perdida · recarga la página";loaded[c]=true;render()}));
   });
 }
-function stopData(){stopUsers();unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
+function stopData(){stopUsers();ORF=null;$("#delRoot").innerHTML="";unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
 const LERR={"auth/invalid-credential":"Usuario o contraseña incorrectos.","auth/wrong-password":"Usuario o contraseña incorrectos.","auth/user-not-found":"Usuario o contraseña incorrectos.","auth/invalid-email":"Escribe un correo válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos y vuelve a intentar.","auth/network-request-failed":"Sin conexión a internet."};
 if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
   $("#lerr").textContent="Falta configurar Firebase (firebase-config.js).";$("#lbtn").disabled=true;
