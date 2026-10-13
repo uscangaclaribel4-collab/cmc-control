@@ -183,15 +183,15 @@ const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const today=()=>iso(new Date());
 const fmtD=s=>{if(!s)return"";const[y,m,d]=s.split("-");return m+"/"+d+"/"+y};
 
-const COLS=["drivers","entregas","pagos","gastos","retiros"];
-const S={drivers:[],entregas:[],pagos:[],gastos:[],retiros:[]};
+const COLS=["drivers","entregas","pagos","gastos","retiros","cobros"];
+const S={drivers:[],entregas:[],pagos:[],gastos:[],retiros:[],cobros:[]};
 let db=null, dl=null, tab="resumen", periodo="mes", anio1099=String(new Date().getFullYear()-0), umbral=2000;
 let loaded={};
 try{tab=localStorage.getItem("cmc_tab")||tab;periodo=localStorage.getItem("cmc_per")||periodo}catch(e){}
 
-const TABS=[["resumen","Resumen"],["entregas","Entregas"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["socios","Socios"],["1099","1099 / Impuestos"],["usuarios","Usuarios"]];
+const TABS=[["resumen","Resumen"],["entregas","Entregas"],["cobros","Cobros a clientes"],["drivers","Drivers"],["pagos","Pagos a drivers"],["gastos","Gastos"],["socios","Socios"],["1099","1099 / Impuestos"],["usuarios","Usuarios"]];
 const SOCIOS=["Claribel Alfonso","Felipe Alfonso","Daianna Velasquez"];
-const METODOS=["Zelle","Transferencia","Cheque","Efectivo","Cash App","Otro"];
+const METODOS=["Zelle","Transferencia","ACH","Cheque","Efectivo","Cash App","Otro"];
 const CATS=["Combustible","Seguro","Mantenimiento vehículo","Software / apps","Permisos y licencias","Renta / bodega","Teléfono","Oficina","Contador / legal","Publicidad","Otro"];
 const PAGO_TIPO={paquete:"Por paquete entregado",ruta:"Tarifa fija por ruta/día",manual:"Monto manual"};
 
@@ -225,9 +225,9 @@ function totales(r){
   const ingreso=E.reduce((s,e)=>s+(+e.ingreso||0),0);
   const costoDrivers=E.reduce((s,e)=>s+(+e.pagoDriver||0),0);
   const gastos=G.reduce((s,g)=>s+(+g.monto||0),0);
-  const pagado=P.reduce((s,p)=>s+(+p.monto||0),0);
+  const pagado=P.reduce((s,p)=>s+(+p.monto||0),0), cobrado=S.cobros.filter(x=>inR(x.fecha,r)).reduce((s,x)=>s+(+x.monto||0),0);
   const paq=E.reduce((s,e)=>s+(+e.paquetes||0),0), ent=E.reduce((s,e)=>s+(+e.entregados||0),0), per=E.reduce((s,e)=>s+(+e.perdidos||0),0);
-  return{E,P,G,ingreso,costoDrivers,gastos,pagado,paq,ent,per,ganancia:ingreso-costoDrivers-gastos};
+  return{E,P,G,ingreso,costoDrivers,gastos,pagado,cobrado,paq,ent,per,ganancia:ingreso-costoDrivers-gastos};
 }
 
 /* ---------- render ---------- */
@@ -249,7 +249,7 @@ function render(){
   const v=$("#view");
   if(!db)return;
   if(!COLS.every(c=>loaded[c])){v.innerHTML=`<div class="empty"><strong>Cargando</strong>Leyendo tus registros…</div>`;return}
-  ({resumen:vResumen,entregas:vEntregas,drivers:vDrivers,pagos:vPagos,gastos:vGastos,socios:vSocios,"1099":v1099,usuarios:vUsuarios}[tab]||vResumen)(v);
+  ({resumen:vResumen,entregas:vEntregas,cobros:vCobros,drivers:vDrivers,pagos:vPagos,gastos:vGastos,socios:vSocios,"1099":v1099,usuarios:vUsuarios}[tab]||vResumen)(v);
 }
 
 function vResumen(v){
@@ -266,7 +266,7 @@ function vResumen(v){
   v.innerHTML=`
   <div class="bar"><div class="left"><h2>Resumen</h2>${periodSelect()}</div><span class="sub">${fmtD(r[0])==="01/01/0000"?"Todo el historial":fmtD(r[0])+" – "+fmtD(r[1])}</span></div>
   <div class="kpis">
-    <div class="kpi"><div class="l">Ingresos (cobro a clientes)</div><div class="v">${money(t.ingreso)}</div><div class="s">${t.E.length} rutas</div></div>
+    <div class="kpi"><div class="l">Ingresos (cobro a clientes)</div><div class="v">${money(t.ingreso)}</div><div class="s">${t.E.length} rutas · cobrado ${money(t.cobrado)}</div></div>
     <div class="kpi"><div class="l">Costo de drivers</div><div class="v">${money(t.costoDrivers)}</div><div class="s">pagado en periodo ${money(t.pagado)}</div></div>
     <div class="kpi"><div class="l">Gastos</div><div class="v">${money(t.gastos)}</div><div class="s">${t.G.length} registros</div></div>
     <div class="kpi profit${t.ganancia<0?" neg":""}"><div class="l">Ganancia</div><div class="v">${money(t.ganancia)}</div><div class="s">margen ${t.ingreso?(t.ganancia/t.ingreso*100).toFixed(1):"0.0"}%</div></div>
@@ -343,6 +343,35 @@ function vGastos(v){
   :`<div class="empty"><strong>Sin gastos en este periodo</strong>Anota combustible, seguro, apps, permisos y todo lo que paga la empresa. Guarda el recibo.</div>`}`;
 }
 
+function clientesSaldo(r){
+  const m={};const k=c=>(c||"").trim()||"(sin cliente)";
+  S.entregas.filter(e=>!r||inR(e.fecha,r)).forEach(e=>{const c=k(e.cliente);(m[c]??={fact:0,cob:0}).fact+=+e.ingreso||0});
+  S.cobros.filter(x=>!r||inR(x.fecha,r)).forEach(x=>{const c=k(x.cliente);(m[c]??={fact:0,cob:0}).cob+=+x.monto||0});
+  return Object.entries(m).map(([c,v])=>({c,...v,pend:v.fact-v.cob})).sort((a,b)=>b.pend-a.pend||a.c.localeCompare(b.c));
+}
+function vCobros(v){
+  const r=rango(periodo), t=totales(r), tot=clientesSaldo(null), porCobrar=tot.reduce((s,x)=>s+Math.max(0,x.pend),0);
+  const L=S.cobros.filter(x=>inR(x.fecha,r)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const clientes=[...new Set(S.entregas.map(e=>(e.cliente||"").trim()).concat(S.cobros.map(x=>(x.cliente||"").trim())).filter(Boolean))].sort();
+  v.innerHTML=`<datalist id="dl_clientes">${clientes.map(c=>`<option value="${esc(c)}">`).join("")}</datalist>
+  <div class="bar"><div class="left"><h2>Cobros a clientes</h2>${periodSelect()}</div><div class="left"><button class="btn" data-csv="cobros">Exportar CSV</button><button class="btn primary" data-new="cobros">+ Registrar pago de cliente</button></div></div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">Facturado en el periodo</div><div class="v">${money(t.ingreso)}</div><div class="s">según las rutas registradas</div></div>
+    <div class="kpi profit"><div class="l">Cobrado en el periodo</div><div class="v">${money(t.cobrado)}</div><div class="s">${L.length} pagos recibidos</div></div>
+    <div class="kpi"><div class="l">Por cobrar (todo el historial)</div><div class="v" style="color:${porCobrar>0?"var(--warn)":"var(--good)"}">${money(porCobrar)}</div><div class="s">lo que los clientes aún deben</div></div>
+  </div>
+  <h3>Saldo por cliente (todo el historial)</h3>
+  ${tot.length?`<div class="tw" style="margin-bottom:22px"><table><thead><tr><th>Cliente</th><th class="n">Facturado</th><th class="n">Cobrado</th><th class="n">Por cobrar</th></tr></thead><tbody>
+  ${tot.map(x=>`<tr><td>${esc(x.c)}</td><td class="n">${money(x.fact)}</td><td class="n">${money(x.cob)}</td><td class="n"><b style="color:${x.pend>0.004?"var(--warn)":x.pend<-0.004?"var(--navy)":"var(--good)"}">${money(x.pend)}</b></td></tr>`).join("")}
+  </tbody></table></div>`:`<p class="muted">Todavía no hay rutas ni cobros registrados.</p>`}
+  <h3>Pagos recibidos en el periodo</h3>
+  ${L.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Método</th><th>Referencia</th><th>Periodo / factura</th><th class="n">Monto</th><th></th></tr></thead><tbody>
+  ${L.map(x=>`<tr><td class="d">${fmtD(x.fecha)}</td><td>${esc(x.cliente||"")}${exChip(x)}${x.notas?`<div class="sub">${esc(x.notas)}</div>`:""}</td><td>${esc(x.metodo||"")}</td><td class="d">${esc(x.referencia||"")}</td><td>${esc(x.periodo||"")}</td><td class="n">${money(x.monto)}</td>${rowActions("cobros",x.id)}</tr>`).join("")}
+  </tbody><tfoot><tr><td colspan="5">${L.length} pagos</td><td class="n">${money(L.reduce((s,x)=>s+(+x.monto||0),0))}</td><td></td></tr></tfoot></table></div>`
+  :`<div class="empty"><strong>Sin pagos de clientes en este periodo</strong>Registra cada pago que te hace un cliente (fecha, monto y método) para saber cuánto te deben.</div>`}
+  <p class="note">"Facturado" sale de lo que pones en "Cobro al cliente" en cada ruta. Escribe el nombre del cliente igual en las rutas y en los pagos para que el saldo cuadre.</p>`;
+}
+
 function vSocios(v){
   const r=rango(periodo), t=totales(r), parte=t.ganancia/SOCIOS.length;
   const R=S.retiros.filter(x=>inR(x.fecha,r)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
@@ -399,6 +428,11 @@ const F={
     ["monto","Monto $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
     ["referencia","Referencia / # cheque","text"],["periodo","Periodo cubierto","text",{ph:"Ej. Semana 9/28 – 10/4"}],
     ["notas","Notas","textarea",{full:1}]]},
+  cobros:{t:"Pago de cliente",f:[
+    ["fecha","Fecha del pago","date",{req:1,def:today}],["cliente","Cliente","text",{req:1,list:"dl_clientes",ph:"Ej. Amazon DSP"}],
+    ["monto","Monto recibido $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
+    ["referencia","Referencia / # cheque","text"],["periodo","Periodo o factura que paga","text",{ph:"Ej. Semana 10/6 – 10/12"}],
+    ["notas","Notas","textarea",{full:1}]]},
   retiros:{t:"Retiro de socio",f:[
     ["fecha","Fecha","date",{req:1,def:today}],["socio","Socio","select",{opts:SOCIOS.map(s=>[s,s])}],
     ["monto","Monto $","number",{req:1}],["metodo","Método","select",{opts:METODOS.map(m=>[m,m])}],
@@ -430,7 +464,7 @@ function openForm(col,id,preset){
     if(type==="select")inp=`<select id="${fid}" name="${k}">${o.opts.map(([a,b])=>`<option value="${esc(a)}"${a===v?" selected":""}>${esc(b)}</option>`).join("")}</select>`;
     else if(type==="driver")inp=`<select id="${fid}" name="${k}"${rq}><option value="">Elige un driver…</option>${S.drivers.filter(d=>d.activo!==false||d.id===v).map(d=>`<option value="${d.id}"${d.id===v?" selected":""}>${esc(d.nombre)}</option>`).join("")}</select>`;
     else if(type==="textarea")inp=`<textarea id="${fid}" name="${k}" rows="2" placeholder="${esc(o.ph||"")}">${esc(v??"")}</textarea>`;
-    else inp=`<input id="${fid}" name="${k}" type="${type}"${type==="number"?' step="0.01" min="0" inputmode="decimal"':""} value="${esc(v??"")}" placeholder="${esc(o.ph||"")}"${rq}>`;
+    else inp=`<input id="${fid}" name="${k}" type="${type}"${type==="number"?' step="0.01" min="0" inputmode="decimal"':""} value="${esc(v??"")}" placeholder="${esc(o.ph||"")}"${o.list?` list="${o.list}"`:""}${rq}>`;
     return `<label${cls} for="${fid}">${l}${o.req?" *":""}${inp}${o.hint?`<span class="hint">${o.hint}</span>`:""}</label>`;
   }).join("");
   $("#modalRoot").innerHTML=`<div class="ov" id="ov"><form class="modal" id="frm" novalidate><h2>${doc?"Editar":"Nuevo"}: ${sch.t}</h2><div class="form">${fields}</div><p class="sub" id="ferr" style="color:var(--bad)"></p><div class="mact"><button type="button" class="btn" id="fcancel">Cancelar</button><button type="submit" class="btn primary" id="fsave">Guardar</button></div></form></div>`;
@@ -489,6 +523,7 @@ function buildCsv(k){
   if(k==="entregas")return csv([["Fecha","Driver","Ruta","Cliente","Paquetes","Entregados","Dobles","Devueltos","Perdidos","Cobro","Pago driver","Margen","Notas"],...S.entregas.filter(e=>inR(e.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(e=>[e.fecha,drvName(e.driverId),e.ruta,e.cliente,e.paquetes,e.entregados,e.dobles||0,(e.paquetes||0)-(e.entregados||0)-(e.perdidos||0),e.perdidos||0,e.ingreso,e.pagoDriver,((+e.ingreso||0)-(+e.pagoDriver||0)).toFixed(2),e.notas])]);
   if(k==="pagos")return csv([["Fecha","Driver","Monto","Método","Referencia","Periodo","Notas"],...S.pagos.filter(p=>inR(p.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(p=>[p.fecha,drvName(p.driverId),p.monto,p.metodo,p.referencia,p.periodo,p.notas])]);
   if(k==="gastos")return csv([["Fecha","Categoría","Proveedor","Descripción","Monto"],...S.gastos.filter(g=>inR(g.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(g=>[g.fecha,g.categoria,g.proveedor,g.descripcion,g.monto])]);
+  if(k==="cobros")return csv([["Fecha","Cliente","Monto","Método","Referencia","Periodo/factura","Notas"],...S.cobros.filter(x=>inR(x.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>[x.fecha,x.cliente,x.monto,x.metodo,x.referencia,x.periodo,x.notas])]);
   if(k==="retiros")return csv([["Fecha","Socio","Monto","Método","Notas"],...S.retiros.filter(x=>inR(x.fecha,rango(periodo))).sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(x=>[x.fecha,x.socio,x.monto,x.metodo,x.notas])]);
   if(k==="drivers")return csv([["Nombre","Teléfono","Email","Vehículo","Placa","Forma de pago","Tarifa","W-9","Vence seguro","Activo","Inicio","Notas"],...S.drivers.map(d=>[d.nombre,d.telefono,d.email,d.vehiculo,d.placa,PAGO_TIPO[d.pagoTipo],d.tarifa,d.w9?"Sí":"No",d.vencSeguro,d.activo===false?"No":"Sí",d.fechaInicio,d.notas])]);
   if(k==="1099"){const tot={};S.pagos.filter(p=>p.fecha?.startsWith(anio1099)).forEach(p=>tot[p.driverId]=(tot[p.driverId]||0)+(+p.monto||0));
