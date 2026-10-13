@@ -318,7 +318,7 @@ function vDrivers(v){
   v.innerHTML=`<div class="bar"><div class="left"><h2>Drivers independientes</h2><span class="sub">${S.drivers.filter(d=>d.activo!==false).length} activos</span></div><div class="left"><button class="btn" data-csv="drivers">Exportar CSV</button><button class="btn primary" data-new="drivers">+ Agregar driver</button></div></div>
   ${huerfanosHtml()}
   ${L.length?`<div class="tw"><table><thead><tr><th>Nombre</th><th>Contacto</th><th>Vehículo</th><th>Forma de pago</th><th>Documentos</th><th class="n">Perdidos</th><th class="n">Le debes</th><th></th></tr></thead><tbody>
-  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")+(d.pagoTipo==="paquete"?" · doble "+money((+d.tarifaDoble)||(+d.tarifa||0)*2):(+d.tarifaDoble?" · doble +"+money(d.tarifaDoble):""))}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}${d.licVence?` <span class="chip ${d.licVence<today()?"bad":"good"}">Licencia ${fmtD(d.licVence)}</span>`:""}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n">${money(bal)}</td>${rowActions("drivers",d.id).replace('<td class="act">','<td class="act"><button class="btn small" data-exp="'+d.id+'">Expediente</button>')}</tr>`}).join("")}
+  ${L.map(d=>{const s=sal[d.id]||{ganado:0,pagado:0},bal=s.ganado-s.pagado;return`<tr><td><b>${esc(d.nombre)}</b>${exChip(d)} ${d.activo===false?`<span class="chip">Inactivo</span>`:""}</td><td>${esc(d.telefono||"")}<div class="sub">${esc(d.email||"")}</div></td><td>${esc(d.vehiculo||"")}<div class="sub">${esc(d.placa||"")}</div></td><td>${PAGO_TIPO[d.pagoTipo]||"—"}<div class="sub">${d.pagoTipo==="manual"?"":money(d.tarifa)+(d.pagoTipo==="paquete"?" / paquete":" / ruta")+(d.pagoTipo==="paquete"?" · doble "+money((+d.tarifaDoble)||(+d.tarifa||0)*2):(+d.tarifaDoble?" · doble +"+money(d.tarifaDoble):""))}</div></td><td>${d.w9?`<span class="chip good">W-9</span>`:`<span class="chip bad">Falta W-9</span>`} ${d.vencSeguro?`<span class="chip ${d.vencSeguro<today()?"bad":"good"}">Seguro ${fmtD(d.vencSeguro)}</span>`:`<span class="chip warn">Sin seguro registrado</span>`}${d.licVence?` <span class="chip ${d.licVence<today()?"bad":"good"}">Licencia ${fmtD(d.licVence)}</span>`:""}</td><td class="n">${(()=>{const n=S.entregas.filter(e=>e.driverId===d.id).reduce((s,e)=>s+(+e.perdidos||0),0);return n?`<b style="color:var(--bad)">${num(n)}</b>`:"0"})()}</td><td class="n"><button class="btn small" type="button" data-cuenta="${d.id}" title="Ver de dónde sale">${money(bal)}</button></td>${rowActions("drivers",d.id).replace('<td class="act">','<td class="act"><button class="btn small" data-exp="'+d.id+'">Expediente</button><button class="btn small" data-cuenta="'+d.id+'">Cuenta</button>')}</tr>`}).join("")}
   </tbody></table></div><p class="note">Como contratistas 1099, cada driver debe firmar su W-9 antes del primer pago. Usa el botón Expediente para guardar su licencia, SSN, fotos de la licencia y firmar el W-9.</p>`
   :`<div class="empty"><strong>Aún no tienes drivers</strong>Agrega a tus drivers independientes con su forma de pago (por paquete o por ruta).</div>`}`;
 }
@@ -997,6 +997,49 @@ document.addEventListener("submit",async e=>{
   }catch(err){ok.disabled=false;ok.textContent="Recalcular";$("#rcerr").textContent=errMsg(err)}
 });
 
+/* ---------- cuenta del driver: de dónde sale lo que se le debe ---------- */
+let CU=null;
+function abrirCuenta(id){if(!drv(id))return;CU=id;renderCuenta()}
+function cerrarCuenta(){if(CU){CU=null;$("#delRoot").innerHTML=""}}
+function renderCuenta(){
+  const d=drv(CU); if(!d){cerrarCuenta();return}
+  const E=S.entregas.filter(e=>e.driverId===CU).sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+  const P=S.pagos.filter(p=>p.driverId===CU).sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+  const gan=E.reduce((s,e)=>s+(+e.pagoDriver||0),0), pag=P.reduce((s,p)=>s+(+p.monto||0),0);
+  const cnt={}; E.forEach(e=>{const k=(e.fecha||"")+"|"+(e.ruta||"").trim().toLowerCase()+"|"+(+e.entregados||0);cnt[k]=(cnt[k]||0)+1});
+  const dup=e=>cnt[(e.fecha||"")+"|"+(e.ruta||"").trim().toLowerCase()+"|"+(+e.entregados||0)]>1;
+  const cntP={}; P.forEach(p=>{const k=(p.fecha||"")+"|"+(+p.monto||0);cntP[k]=(cntP[k]||0)+1});
+  const dupP=p=>cntP[(p.fecha||"")+"|"+(+p.monto||0)]>1;
+  const viejo=E.filter(e=>{const n=calcPago(CU,e.entregados,e.dobles);return n!=null&&Math.abs((+e.pagoDriver||0)-n)>0.004});
+  const nDup=E.filter(dup).length+P.filter(dupP).length;
+  $("#delRoot").innerHTML=`<div class="ov" id="ovcu"><div class="modal wide"><h2>Cuenta de ${esc(d.nombre)}</h2>
+  <div class="kpis" style="margin-bottom:14px">
+    <div class="kpi"><div class="l">Ganado (suma de sus rutas)</div><div class="v">${money(gan)}</div><div class="s">${plural(E.length,"ruta","rutas")}</div></div>
+    <div class="kpi"><div class="l">Pagado</div><div class="v">${money(pag)}</div><div class="s">${plural(P.length,"pago","pagos")}</div></div>
+    <div class="kpi"><div class="l">Le debes</div><div class="v">${money(gan-pag)}</div><div class="s">todo el historial</div></div>
+  </div>
+  ${nDup?`<p class="sub" style="color:var(--warn);margin:0 0 8px"><b>Hay ${plural(nDup,"registro repetido","registros repetidos")}</b> (misma fecha y mismos datos). Si sobran, elimínalos aquí.</p>`:""}
+  ${viejo.length?`<p class="sub" style="color:var(--warn);margin:0 0 8px"><b>${plural(viejo.length,"ruta tiene","rutas tienen")} un pago distinto a su tarifa actual.</b> <button class="btn small" type="button" id="cuRecalc">Recalcular con la tarifa actual</button></p>`:""}
+  <h3>Rutas</h3>
+  ${E.length?`<div class="tw" style="margin-bottom:16px"><table><thead><tr><th>Fecha</th><th>Ruta</th><th class="n">Entregados</th><th class="n">Dobles</th><th class="n">Pago al driver</th><th></th></tr></thead><tbody>
+  ${E.map(e=>{const n=calcPago(CU,e.entregados,e.dobles),dif=n!=null&&Math.abs((+e.pagoDriver||0)-n)>0.004;return`<tr><td class="d">${fmtD(e.fecha)}${dup(e)?' <span class="chip warn">Repetido</span>':""}</td><td>${esc(e.ruta||"")}</td><td class="n">${num(e.entregados)}</td><td class="n">${num(e.dobles||0)}</td><td class="n">${money(e.pagoDriver)}${dif?`<div class="sub" style="color:var(--warn)">con tarifa actual: ${money(n)}</div>`:""}</td>${rowActions("entregas",e.id)}</tr>`}).join("")}
+  </tbody></table></div>`:`<p class="muted">Sin rutas.</p>`}
+  <h3>Pagos</h3>
+  ${P.length?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="n">Monto</th><th></th></tr></thead><tbody>
+  ${P.map(p=>`<tr><td class="d">${fmtD(p.fecha)}${dupP(p)?' <span class="chip warn">Repetido</span>':""}</td><td>${esc(p.metodo||"")}</td><td class="d">${esc(p.referencia||"")}</td><td class="n">${money(p.monto)}</td>${rowActions("pagos",p.id)}</tr>`).join("")}
+  </tbody></table></div>`:`<p class="muted">Sin pagos.</p>`}
+  <div class="mact"><button type="button" class="btn" id="cuClose">Cerrar</button></div></div></div>`;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  if(b.dataset.cuenta){abrirCuenta(b.dataset.cuenta);return}
+  if(b.id==="cuClose"){cerrarCuenta();return}
+  if(b.id==="cuRecalc"){const id=CU,d=drv(id);cerrarCuenta();ofrecerRecalculo(id,d);return}
+  if(b.dataset.edit&&b.closest("#delRoot"))cerrarCuenta();
+});
+document.addEventListener("mousedown",e=>{if(e.target.id==="ovcu")cerrarCuenta()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&CU&&!editing)cerrarCuenta()});
+
 /* ---------- eventos ---------- */
 let armed=null;
 document.addEventListener("click",e=>{
@@ -1032,12 +1075,12 @@ function startData(){
   $("#sync").textContent="Sincronizado";
   COLS.forEach(c=>{
     unsubs.push(db.collection("hou_"+c).onSnapshot(snap=>{
-      S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));loaded[c]=true;
+      S[c]=snap.docs.map(d=>({...d.data(),id:d.id}));loaded[c]=true;if(CU&&(c==="entregas"||c==="pagos"||c==="drivers"))renderCuenta();
       if(!editing)render();else if(editing.col===c&&editing.id&&!S[c].some(x=>x.id===editing.id)){closeForm();toast("Ese registro fue eliminado")}else{renderBanners()}
     },err=>{$("#sync").textContent=err?.code==="permission-denied"?"Este usuario no tiene acceso":"Conexión perdida · recarga la página";loaded[c]=true;render()}));
   });
 }
-function stopData(){stopUsers();ORF=null;$("#delRoot").innerHTML="";unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
+function stopData(){stopUsers();CU=null;ORF=null;$("#delRoot").innerHTML="";unsubs.forEach(u=>u());unsubs=[];COLS.forEach(c=>{S[c]=[];loaded[c]=false});db=null}
 const LERR={"auth/invalid-credential":"Usuario o contraseña incorrectos.","auth/wrong-password":"Usuario o contraseña incorrectos.","auth/user-not-found":"Usuario o contraseña incorrectos.","auth/invalid-email":"Escribe un correo válido.","auth/too-many-requests":"Demasiados intentos. Espera unos minutos y vuelve a intentar.","auth/network-request-failed":"Sin conexión a internet."};
 if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
   $("#lerr").textContent="Falta configurar Firebase (firebase-config.js).";$("#lbtn").disabled=true;
